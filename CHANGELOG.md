@@ -6,6 +6,10 @@ What's new in each version of WoWDeck Addon Manager. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Update all shows a bar that fills as addons finish, naming the addon it's on and how far the run has got.
+
 ### Fixed
 
 - With a game running, the wide Get Addons view no longer slides under Steam's top and bottom bars.
