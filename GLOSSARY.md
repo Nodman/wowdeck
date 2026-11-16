@@ -259,6 +259,21 @@ WoWDeck writes, which is a different addon. Options › Notifications offers to
 install it into the active installation from WowUp Hub.
 _Avoid_: companion data addon (that is `wowup_data_addon`), WowUp addon
 
+**Addon row**:
+One addon as My Addons lists it, with its TOC dependencies, who needs it
+and the game version its installation runs. `addons.list` returns the rows,
+and every addon method returns the row of the addon it changed. The engine's
+Addon view (`AddonView.ts`) builds both.
+_Avoid_: "record", which is the stored addon the row is built from.
+
+**Engine link**:
+The frontend's one way to the engine and to `main.py` (`src/engineLink.ts`):
+the typed `rpc` and `bridge`, and one event router. The plugin connects
+Decky's adapter to it once, at plugin load; tests connect the typed fake
+engine. Stores take its `rpc` when they are built and hear its events from
+plugin load on, so a change reaches them while the panel is closed.
+_Avoid_: backend module, `api`, subscribing to `backend_event` in a component.
+
 ## Get Addons rework
 
 **Title bar**:
@@ -302,6 +317,12 @@ _Avoid_: migrate, transfer, cross-flavor restore
 A folder containing at least one `.toc` file directly inside it. Its TOC's
 presence alone does not establish compatibility with a particular WoW client.
 
+**Release archive**:
+One addon release's archive file, downloaded or copied in from a picked
+file, held from then until it is disposed of. The preview and the install
+read where it installs from it.
+_Avoid_: "download", which is only one way to get it.
+
 ## Addon recovery
 
 **Previous version**:
@@ -317,3 +338,16 @@ _Avoid_: "kept files", which also describes the previous version.
 The state of a WoW installation whose unfinished addon operation leaves its
 addon state uncertain. Further addon changes pause until recovery resolves it.
 _Avoid_: "broken installation", which suggests WoW itself cannot run.
+
+**Engine**:
+The Bun backend process started by `main.py`. It owns addon work, settings,
+update checks and normal update staging. The frontend calls its typed RPC.
+
+**Recovery screen**:
+The plugin screen for an engine that cannot start. It can offer a replacement
+build without calling the engine. Its update controls are separate work.
+
+**Recovery updater**:
+The Python module shipped beside `main.py` that downloads a supplied release,
+checks its digest and package, and returns a private staged zip. It works
+without the engine and never writes engine settings.

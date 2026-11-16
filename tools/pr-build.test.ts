@@ -7,12 +7,12 @@ import {
   isMaintainerRole,
   nextPrBuildVersion,
   planPublish,
-  type PrBuildEntry,
   type PrState,
+  type PublishedPrBuild,
   withBuild,
 } from "./pr-build";
 
-function entry(number: number, version: string): PrBuildEntry {
+function entry(number: number, version: string): PublishedPrBuild {
   return {
     number,
     title: `PR ${number}`,
@@ -379,7 +379,7 @@ describe("command line", () => {
     return { out, code: await proc.exited };
   }
 
-  async function indexFile(builds: PrBuildEntry[]): Promise<string> {
+  async function indexFile(builds: PublishedPrBuild[]): Promise<string> {
     const path = join(dir, "index.json");
     await Bun.write(path, JSON.stringify({ builds }));
     return path;

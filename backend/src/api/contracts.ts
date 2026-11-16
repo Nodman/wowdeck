@@ -678,10 +678,10 @@ export interface MethodMap {
   "tradeskillmaster.removeAddons": { params: { installationId: string; cleanupFollows?: boolean; cleanupPreview?: TradeSkillMasterAccount["follows"] }; result: { operations: OperationResult[]; cleanup?: { removed: TradeSkillMasterAccount["follows"]; leftBehind: TradeSkillMasterAccount["follows"]; error?: string } } };
   "tradeskillmaster.account": { params: Record<string, never>; result: TradeSkillMasterAccount };
   "tradeskillmaster.unfollow": { params: { realmId: number; auctionHouseType: string }; result: TradeSkillMasterAccount };
-  "tradeskillmaster.refresh": { params: { installationId?: string }; result: void };
+  "tradeskillmaster.refresh": { params: { installationId: string }; result: void };
   "tradeskillmaster.wake": { params: Record<string, never>; result: void };
-  "tradeskillmaster.setFollow": { params: { installationId?: string; realmId: number; auctionHouseType: string; followed: boolean }; result: TradeSkillMasterDestination };
-  "tradeskillmaster.destination": { params: { installationId?: string }; result: TradeSkillMasterDestination };
+  "tradeskillmaster.setFollow": { params: { installationId: string; realmId: number; auctionHouseType: string; followed: boolean }; result: TradeSkillMasterDestination };
+  "tradeskillmaster.destination": { params: { installationId: string }; result: TradeSkillMasterDestination };
   "tradeskillmaster.status": { params: Record<string, never>; result: TradeSkillMasterAuthStatus };
   "tradeskillmaster.signIn": { params: Record<string, never>; result: { authorizeUrl: string } };
   "tradeskillmaster.cancel": { params: Record<string, never>; result: TradeSkillMasterAuthStatus };
@@ -989,22 +989,22 @@ export interface MethodMap {
     result: RecoveryVerifyResult;
   };
   /**
-   * The active installation's addons. In a recovery-required installation
+   * The installation's addons. In a recovery-required installation
    * this is read-only: the stored addon records as they are, without
    * scanning folders or reconciling anything, and `unverified` is set (the
    * files may not match them). Unmanaged folders are not listed then.
    */
   "addons.list": {
-    params: { installationId?: string };
+    params: { installationId: string };
     result: { addons: Addon[]; unverified?: true };
   };
   "addons.refresh": {
-    params: { installationId?: string };
+    params: { installationId: string };
     result: { addons: Addon[]; updated: number; failed: number };
   };
   "addons.search": {
     /** providerId: one source with `ProviderInfo.catalogSearch`; any other answers no results. */
-    params: { query: string; providerId?: string };
+    params: { installationId: string; query: string; providerId?: string };
     result: { results: SearchResult[]; providerErrors: ProviderErrors };
   };
   "addons.resolveUrlImport": {
@@ -1013,7 +1013,7 @@ export interface MethodMap {
      * shorthand or Nix-style github:owner/repository reference, or an
      * https link to a .zip/.rar/.7z file (provider "Zip").
      */
-    params: { url: string };
+    params: { installationId: string; url: string };
     /**
      * Never a thrown RPC error: a failure (no compatible release, rate
      * limited, not found, bad input) is an expected outcome and comes back
@@ -1041,12 +1041,12 @@ export interface MethodMap {
    * otherwise shows `message`.
    */
   "addons.inspectArchive": {
-    params: { path: string };
+    params: { installationId: string; path: string };
     result: Settled<ArchivePreview>;
   };
   "discover.latest": {
     /** providerId: a source with `ProviderInfo.discovers` (the list's Source menu). */
-    params: { providerId: string; index: number; pageSize: number };
+    params: { installationId: string; providerId: string; index: number; pageSize: number };
     result: { results: SearchResult[]; totalCount: number };
   };
   "discover.popular": {
@@ -1054,7 +1054,7 @@ export interface MethodMap {
      * providerId: as for discover.latest. categoryId: an id from
      * addons.getCategories for that source, or omitted for "All Categories".
      */
-    params: { providerId: string; index: number; pageSize: number; categoryId?: string };
+    params: { installationId: string; providerId: string; index: number; pageSize: number; categoryId?: string };
     result: { results: SearchResult[]; totalCount: number };
   };
   "addons.getDescription": {
@@ -1062,17 +1062,17 @@ export interface MethodMap {
     result: { description: string | null };
   };
   "addons.getChangelog": {
-    params: { providerId: string; externalId: string };
+    params: { installationId: string; providerId: string; externalId: string };
     result: { changelog: string | null };
   };
   "addons.getCategories": {
-    params: { providerId: string };
+    params: { installationId: string; providerId: string };
     /** null means the provider doesn't support category retrieval — distinct from a genuinely empty list. */
     result: { categories: ProviderCategory[] | null };
   };
   "addons.install": {
     /** `channel`: install from that release channel and follow it (providers with channels only). */
-    params: { providerId: string; externalId: string; channel?: ReleaseChannel; installationId?: string };
+    params: { providerId: string; externalId: string; channel?: ReleaseChannel; installationId: string };
     result: AddonOperation;
   };
   /**
@@ -1101,11 +1101,11 @@ export interface MethodMap {
   };
   /**
    * Names for provider ids (the Relationships page, WF-11), and whether each
-   * is installed in the selected installation. Ids the provider does not
+   * is installed in the installation named. Ids the provider does not
    * return for this game version are left out.
    */
   "addons.lookup": {
-    params: { providerId: string; externalIds: string[] };
+    params: { installationId: string; providerId: string; externalIds: string[] };
     result: { addons: Array<{ externalId: string; name: string; thumbnailUrl: string | null; installed: boolean }> };
   };
   /**
@@ -1118,13 +1118,13 @@ export interface MethodMap {
     result: AddonOperation;
   };
   /**
-   * An addon's folders in the selected installation's AddOns (WF-20, the
+   * An addon's folders in the installation's AddOns (WF-20, the
    * Details Folders page): a managed addon's recorded folders, main folder
    * first, or an unmanaged addon's one folder; `present` false when it is
    * gone from disk. With the file manager addons.showFolders would use.
    */
   "addons.folders": {
-    params: { addonId: string };
+    params: { installationId: string; addonId: string };
     result: { addonsPath: string; folders: Array<{ name: string; path: string; present: boolean }>; fileManager: FileManagerState };
   };
   /**
@@ -1134,7 +1134,7 @@ export interface MethodMap {
    * FileManagerState).
    */
   "addons.showFolders": {
-    params: { addonId: string };
+    params: { installationId: string; addonId: string };
     result: { shown: boolean; steamAppId: number | null };
   };
   "addons.remove": {
@@ -1149,7 +1149,7 @@ export interface MethodMap {
     result: { addonId: string; operation: OperationResult };
   };
   "addons.removeUnmanaged": {
-    params: { folderName: string; installationId?: string };
+    params: { folderName: string; installationId: string };
     result: { operation: OperationResult };
   };
   /**
@@ -1161,7 +1161,7 @@ export interface MethodMap {
    * first, then exact name, then by downloads.
    */
   "addons.findSources": {
-    params: { folderName: string } | { addonId: string };
+    params: { folderName: string; installationId: string } | { addonId: string };
     result: { results: SearchResult[]; providerErrors: ProviderErrors };
   };
   /**
@@ -1170,7 +1170,7 @@ export interface MethodMap {
    * (addons.rollback returns to them). Status "installed", or "failed".
    */
   "addons.adopt": {
-    params: { folderName: string; providerId: string; externalId: string };
+    params: { installationId: string; folderName: string; providerId: string; externalId: string };
     result: AddonOperation;
   };
   /**
@@ -1202,14 +1202,14 @@ export interface MethodMap {
     /**
      * allInstallations (WF-13): every installation, each first checked for
      * updates (its metadata may be old), failures isolated per installation
-     * and per addon. Omitted: the selected installation, as before.
+     * and per addon. Otherwise the installation named.
      */
-    params: { allInstallations?: boolean };
+    params: { installationId: string } | { allInstallations: true };
     result: { operations: OperationResult[] };
   };
   "addons.export": {
     /** WowUp-compatible addon-list export, scoped to one installation. */
-    params: { installationId?: string };
+    params: { installationId: string };
     result: {
       /** Base64 — paste/save this, exactly WowUp's own export string format. */
       payload: string;
@@ -1222,7 +1222,7 @@ export interface MethodMap {
   };
   "addons.previewImport": {
     /** Decode + compare only — never installs anything. */
-    params: { importString: string; installationId?: string };
+    params: { importString: string; installationId: string };
     result: {
       summary: ImportSummary | null;
       /** Set only for a whole-import failure (malformed string, empty list, incompatible client) — per-entry issues show up as "unresolved"/"conflict" rows in `summary` instead. */
@@ -1231,7 +1231,7 @@ export interface MethodMap {
   };
   "addons.importAddonList": {
     /** Installs every "new" row from the same import string's preview, through the normal install pipeline. */
-    params: { importString: string; installationId?: string };
+    params: { importString: string; installationId: string };
     result: {
       operations: OperationResult[];
       error: { code: string; message: string } | null;
@@ -1288,7 +1288,7 @@ export interface MethodMap {
     result: { settings: PluginSettings };
   };
   "wtf.list": {
-    params: { installationId?: string };
+    params: { installationId: string };
     result: {
       wtfExists: boolean;
       backupDir: string;
@@ -1303,13 +1303,13 @@ export interface MethodMap {
   };
   "wtf.create": {
     /** Returns at once; progress arrives as `wtf.progress`, the outcome as `wtf.completed`. */
-    params: { installationId?: string };
+    params: { installationId: string };
     result: { jobId: string };
   };
   "wtf.restore": {
     /** Returns at once (see wtf.create). Always takes an automatic "pre-restore" safety backup first. */
     params: {
-      installationId?: string;
+      installationId: string;
       fileName: string;
       /** Required for backups that don't record their game flavor (made by desktop WowUp). */
       acceptUnknownFlavor?: boolean;
@@ -1320,7 +1320,7 @@ export interface MethodMap {
   };
   "wtf.copySources": {
     /** Other versions with something to copy; empty when there is none (or the backup folder is unavailable). */
-    params: { installationId?: string };
+    params: { installationId: string };
     result: {
       dirAvailable: boolean;
       /**
@@ -1340,7 +1340,7 @@ export interface MethodMap {
      * Refused with game_running while WoW runs at all, the source's WoW included.
      */
     params: {
-      installationId?: string;
+      installationId: string;
       /** Flavor key of the version the settings belong to (WtfCopySource.flavor). */
       sourceFlavor: string;
       /**
@@ -1363,7 +1363,7 @@ export interface MethodMap {
     result: { jobId: string };
   };
   "wtf.delete": {
-    params: { installationId?: string; fileName: string };
+    params: { installationId: string; fileName: string };
     result: { fileName: string };
   };
   "wtf.import": {
@@ -1372,7 +1372,7 @@ export interface MethodMap {
      * another flavor goes into that flavor's folder, never this one's: it is then a Settings copy source.
      * Zips that record no flavor (desktop WowUp) go into this flavor's folder.
      */
-    params: { installationId?: string; path: string };
+    params: { installationId: string; path: string };
     result: {
       fileName: string;
       alreadyPresent: boolean;
@@ -1793,8 +1793,6 @@ export type UpdateAllProgress = {
 export interface EventMap {
   /** An automatic update ran and updated or failed something (WF-02). */
   "addons.autoUpdated": { result: AutoUpdateResult };
-  "operation.completed": { result: OperationResult };
-  "operation.failed": { result: OperationResult };
   "tradeskillmaster.changed": Record<string, never>;
   "addons.changed": { addonIds: string[] };
   /**
@@ -1826,3 +1824,43 @@ export interface EventMap {
 }
 
 export type EventName = keyof EventMap & string;
+
+/** An engine event as main.py relays it to the frontend. */
+export type EngineEvent = { [K in EventName]: { event: K; params: EventMap[K] } }[EventName];
+
+/**
+ * Methods main.py answers itself instead of forwarding to the engine. Decky
+ * passes their arguments positionally, so each names them in `args`.
+ * tools/test_main_bridge.py fails when main.py's Plugin and this map differ.
+ */
+export interface BridgeMethodMap {
+  /** Health probe. Never fails: a dead or missing engine answers `ok: false`. */
+  get_status: {
+    args: [];
+    result:
+      | ({ ok: true } & MethodMap["system.getStatus"]["result"])
+      | { ok: false; code: string; message: string };
+  };
+  /** Reads a small text file the user picked (Import Addon List's "Load from file"). */
+  read_text_file: {
+    args: [path: string];
+    result: { ok: boolean; content: string | null; message: string };
+  };
+  /**
+   * Writes `content` as a new file in `directory` (Export Addon List's "Save
+   * to file"). Never overwrites: a taken name gets " (n)" before the extension.
+   */
+  save_text_file: {
+    args: [directory: string, filename: string, content: string];
+    result: { ok: boolean; path: string | null; message: string };
+  };
+}
+
+export type BridgeMethodName = keyof BridgeMethodMap & string;
+
+/** Events main.py emits through `decky.emit`, by name. */
+export interface BridgeEventMap {
+  backend_event: EngineEvent;
+}
+
+export type BridgeEventName = keyof BridgeEventMap & string;

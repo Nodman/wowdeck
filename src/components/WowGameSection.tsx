@@ -1,20 +1,15 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { DialogButton, Focusable } from "@decky/ui";
 import { FaBoxOpen } from "react-icons/fa";
-import * as api from "../services/backend";
+import { engine } from "../engineLink";
 import { pluginToast, toastError } from "../toast";
 import { createAddonActions } from "../addonActions";
 import { settingsStore } from "../settings";
 import { openPanel } from "../openPanel";
+import { activeInstallationId } from "../session";
 import { STEAM, descriptionStyle } from "../steamTheme";
 import { updateSummaryText } from "../steamLibrary";
-import {
-  afterUpdate,
-  checkNow,
-  getSteamUpdates,
-  onSteamSurfaceShown,
-  subscribeSteamUpdates,
-} from "../steamUpdates";
+import { steamUpdates } from "../steamUpdates";
 
 const BUTTON = { minWidth: 0, width: "auto", padding: "8px 16px" } as const;
 
@@ -29,23 +24,24 @@ const BUTTON = { minWidth: 0, width: "auto", padding: "8px 16px" } as const;
  * on, checks in the background at most every 15 minutes.
  */
 export function WowGameSection() {
-  const { summary, checking } = useSyncExternalStore(subscribeSteamUpdates, getSteamUpdates);
+  const { summary, checking } = useSyncExternalStore(steamUpdates.subscribe, steamUpdates.get);
   const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
-    onSteamSurfaceShown();
+    steamUpdates.onSurfaceShown();
   }, []);
 
   // My Addons' Update all; here the counts on this page are what changed.
   const actions = createAddonActions({
-    rpc: api.rpc,
+    rpc: engine.rpc,
     toast: pluginToast,
     toastError,
     autoUpdateOn: () => settingsStore.get().settings.autoUpdate,
+    installationId: activeInstallationId,
     setUpdatingAll: (scope) => setUpdating(scope !== null),
     begin: () => {},
     // "Updating…" stays until the new counts are in.
-    settled: () => afterUpdate(),
+    settled: () => steamUpdates.loadSummary(),
   });
   const updateAll = () => actions.updateAll("all");
 
@@ -101,7 +97,11 @@ export function WowGameSection() {
             Update all
           </DialogButton>
         )}
-        <DialogButton style={BUTTON} disabled={busy} onClick={() => void checkNow({ toast: true })}>
+        <DialogButton
+          style={BUTTON}
+          disabled={busy}
+          onClick={() => void steamUpdates.checkNow({ toast: true })}
+        >
           Check for updates
         </DialogButton>
         <DialogButton style={BUTTON} onClick={open}>

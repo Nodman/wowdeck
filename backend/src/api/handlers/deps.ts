@@ -1,10 +1,14 @@
-/** What the RPC handler modules are built from; main.ts constructs it once. */
+/**
+ * Everything the RPC handlers are built from; engine.ts constructs it once.
+ * Each handler module types the subset it uses (AddonsDeps, WtfDeps, ...),
+ * so a test hands a handler only what it reads.
+ */
 
 import type { AddonService } from "../../wow/addons/AddonService";
 import type { Catalogue } from "../../wow/catalogue/Catalogue";
 import type { InstallationService } from "../../wow/installation/InstallationService";
 import type { CompanionSyncCoordinator } from "../../wow/notifications/CompanionSync";
-import type { UpdateCheck } from "../../wow/notifications/UpdateCheck";
+import type { AddonUpdates } from "../../wow/addons/AddonUpdates";
 import type { UpdateToastGate } from "../../wow/notifications/UpdateToastGate";
 import type { PluginUpdateCheck } from "../../wow/notifications/PluginUpdateCheck";
 import type { UpdateStager } from "../../wow/plugin/UpdateStager";
@@ -30,7 +34,8 @@ export interface HandlerDeps {
   catalogue: Catalogue;
   installationService: InstallationService;
   companionCoordinator: CompanionSyncCoordinator;
-  updateCheck: UpdateCheck;
+  /** The update check, eligibility, Update all and automatic updates. */
+  addonUpdates: AddonUpdates;
   updateToastGate: UpdateToastGate;
   /** WoWDeck's own update notice (system.updateCheck). */
   pluginUpdate: PluginUpdateCheck;
@@ -42,8 +47,8 @@ export interface HandlerDeps {
   curseForgeProvider: CurseForgeProvider;
   wtfService: WtfBackupService;
   wtfJobs: WtfJobRunner;
-  /** The WTF job target for an installation (the active one when no id). */
-  wtfJobTarget: (installationId?: string) => WtfJobTarget;
+  /** The WTF job target for an installation. */
+  wtfJobTarget: (installationId: string) => WtfJobTarget;
   recentErrors: RecentErrorsBuffer;
   /** Options › About (about.get). */
   about: About;

@@ -187,6 +187,7 @@ inactive tabs have no text for `seek` to match.
 | M-32 | P2 | | An installation on an SD card that is removed: Update all installations | That installation's updates fail with "… is not available: its folder is missing (is the SD card in?)"; nothing is written under the card's mount path; the other installations still update |
 | M-33 | P1 | S | An addon installed as another's dependency (Syndicator via Baganator) | **LIBRARY** tag and "needed by Baganator" on its row. **Show libraries** (bottom, saved) hides and shows such rows, except a library no addon needs, which stays shown. Remove on Baganator: the confirmation names Syndicator and offers **Remove Baganator only** and **Remove both** |
 | M-34 | P2 | | An addon whose TOC needs a folder that is missing | The row says "missing <name>" and sorts with the other problems |
+| M-34b | P1 | | Baganator with Syndicator installed as its library. On Baganator: Ignore, Pause auto-update, Reinstall, and Update when one is offered. On Syndicator: Ignore. Do not leave My Addons between actions | After each action the row keeps its "needed by" text and any "missing <name>" text, without a list reload. Details from My Addons still lists the TOC's dependencies. Syndicator still says "needed by Baganator" |
 | M-35 | P1 | S | Update an addon (or let auto-update do it), then its Options menu | "Roll back to <old version>" right after "Release channel"; it puts the old files back (toast) and offers "Undo rollback (<new version>)"; using it toasts "Returned <name> to <new version>" |
 | M-35b | P2 | | Update an addon, then delete its kept copy under AddOns/.wowdeck/rollback/ over SSH; reopen My Addons and its Options menu | No "Roll back" item; the row is otherwise as it was |
 | M-36 | P1 | | Options → Updates → **Previous versions >**, A | One row; its description reads "On · 17 MB for 1 addon". The modal holds **Keep previous versions**, **Space used** ("17 MB for 1 addon") and **Clear**. Clear empties it ("None kept") and the rollback item disappears. **Keep previous versions** off: updates keep nothing |
@@ -205,6 +206,9 @@ inactive tabs have no text for `seek` to match.
 | M-21 | P1 | S | Order of My Addons | Updates first, then "files missing" / "not on …", then A–Z, ignored last. After X updates the top row, it moves to its A–Z place: **note where focus lands** (wanted: on the next row with an update, not the top of the page) |
 | M-44 | P1 | S | On an addon with an update: X (Update); then Options → Ignore and back; then Remove. Repeat Update from a Get Addons result | After each action the row changes once, with no flicker or second spinner: Update → the new version and an UPDATED tag (Get Addons: "Installed, Updated"); Ignore → the row hides (with Show ignored: the IGNORED tag); Remove → the row is gone (Get Addons: Install again) (verified DEVICE 2026-10-27: the row goes from its spinner straight to the new state; the refresh button stays still) |
 | M-45 | P1 | | Two installations with updates waiting, one on an SD card; take the card out, then ≡ **Update all installations** | The toast counts the updated addons and names the others: "Not updated: <name>, <name> +N." The other installation's addons are updated and stay updated; My Addons shows each addon's real version |
+| M-46 | P1 | S | Two installations, each with an addon the other lacks (one unmanaged). Select the second in the **Installation** picker, then: Check for updates; X Update all; on the unmanaged addon Folders, X Find online source and Remove; in Get Addons search, open Latest and Popular with a category, install a result and install from a file | Every list, check, folder view, source search, removal, result and install belongs to the selected installation, never the other one; switching back shows the first installation's addons unchanged |
+| M-47 | P1 | S | With automatic updates on and an update waiting, close the QAM and wait for the automatic update to run (or update an addon from Steam's game page band). Then open My Addons | The list already shows the new version when the panel opens, with no stale row first. TradeSkillMaster in Get Addons shows the same change after a reopen |
+| M-48 | P2 | S | On an addon with an update, open Details (A); from a second row's menu start Update (or Roll back), and reopen Details on the first | Details' footer follows the session while it is open: X reads **Update** and runs it (toast, then Details closes); while that addon's row works, X reads **Update…** and ≡ Release channel is off until it settles. On a recovery-required installation Details offers neither |
 
 One list refresh per addon action (#33) passed M-44, M-4 (row), M-8, M-11,
 M-27, M-33 and M-38b on device on 2026-10-27, driven with the pad and
@@ -1117,3 +1121,69 @@ These cases have not been run on hardware.
 | Inspect a hidden installation's details, then unhide | Auto updates displays off and is disabled with an explanation. Unhiding restores its previous setting, whether on or off. |
 | Restart or detect installations again | Auto updates and Hide choices survive. Newly found installations default to Auto updates on and Hide off. |
 | Run Update all installations | Hidden and auto-off installations are included. |
+
+### TradeSkillMaster shared session
+
+| Action | Expected |
+| --- | --- |
+| Start sign-in in Options, let the browser close the QAM, finish sign-in and return | The browser closes, the source is on, and Options, its nav dot and the destination agree about sign-in. |
+| Revoke the session elsewhere while viewing the destination, then visit Options | Both show signed out and offer sign-in. Sources never says the account stays signed in or offers Sign out after credentials are cleared. One session-ended notification appears. |
+| Keep Manage followed realms open while auction data changes | Manage and the destination both show the current followed realms. |
+| Remove TradeSkillMaster, close and reopen the QAM while it runs | Working stays visible. Installation switching waits, and a recovery-required answer appears in My Addons. |
+
+These rows require the final device run. This change was checked with lint,
+formatting, typechecking, typed-fake tests and a build only. Layout, controller
+navigation and Steam browser return have not been checked on hardware.
+
+Recovery updater TLS verification is pending for both Deck and DroidDeck.
+Before wiring the Recovery screen, probe a valid HTTPS release endpoint and
+an endpoint with an invalid certificate in actual Decky Python on each.
+Confirm certificate rejection and record whether the default trust store or
+Decky's certifi bundle was needed. The read-only attempts on 2026-11-16 did
+not run TLS in either runtime; the phone was unreachable and the Deck used a
+frozen loader without a Python command interface.
+
+
+## Spec 229 review regressions
+
+Automated session tests hold engine responses through the typed fake. They
+check that external installs block switching until the final list arrives,
+that a previous installation's list cannot replace the current list, and
+that a newly discovered recovery refusal shows recovery without an error
+notification. The TradeSkillMaster module test checks installation keys and
+addon-change refreshes. The Manage Follows component test checks a failed
+refresh beside retained follows and a successful retry after QAM teardown.
+
+On the Deck and DroidDeck, check that installation switching waits for a
+file or TradeSkillMaster install to finish. In Manage Follows, interrupt the
+connection, reopen the modal, and check that the old follows remain beside
+the failure message. Restore the connection and choose Retry. Check that
+closing the modal returns focus to Manage.
+
+This code pass reaches automated checks and the build only, tiers T1–T3.
+No visual, controller or hardware verification was performed. The #232 TLS
+acceptance gap still needs evidence from actual Decky Python on both devices.
+
+### TradeSkillMaster delayed sign-in reads
+
+Start a status read and hold its answer. Start sign-in, close Options, then
+finish sign-in. The next shared poll must still run, every view must show
+signed in, and the browser must close once. Delivering the old answer must
+not undo the result. Repeat with Cancel sign-in while a status read is held.
+The cancel request must reach the engine, show signed out, clear loading and
+stop the browser watcher. A late signing-in answer must stay ignored.
+
+Automated coverage uses the typed fake engine and manual clock in
+`src/tsmSignIn.test.ts` and `src/tsmModule.test.ts`. Real browser authentication
+still needs the owner's credentials.
+
+### Sign-in and key-entry keyboard dismissal
+
+With Steam's keyboard open, complete or cancel TradeSkillMaster sign-in.
+The keyboard closes, and completed sign-in returns to Options. Closing
+Options to open the browser must keep the shared sign-in poll running.
+Save a valid CurseForge key, dismiss key entry with Close or B, and close
+the view externally. Each exit closes the keyboard. A rejected key keeps
+entry open for correction. Deterministic tests cover terminal sign-in
+states, key save, explicit close and unmount. Human keyboard verification
+on the Deck remains required.

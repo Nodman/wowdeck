@@ -86,7 +86,7 @@ player-facing name before release.
 - **Manual selection**: Settings → Add Installation. The user either points
   at a real flavor dir (client type inferred from the folder name, "Auto")
   or a non-standard path with an explicit `GameType` from the dropdown
-  above (`InstallationService.addManual`, `backend/src/main.ts`
+  above (`InstallationService.addManual`, `backend/src/api/handlers/installations.ts`
   `installations.add`).
 
 ### §4 — deliberate gaps

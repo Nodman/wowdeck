@@ -12,14 +12,14 @@ import { STEAM } from "../steamTheme";
 import { badgeState, linkedSteamGames, type BadgeState } from "../steamLibrary";
 import { addonSession } from "../session";
 import { settingsStore } from "../settings";
-import { getSteamUpdates, onSteamSurfaceShown, subscribeSteamUpdates } from "../steamUpdates";
+import { steamUpdates } from "../steamUpdates";
 
 /**
  * A small badge on the linked game's tile in Steam's library (home screen
  * and grid): green with a download arrow when addon updates are waiting,
  * dark with a check when all are current, blue while checking (BEYOND-05;
  * owner, 2026-10-16: glyphs and colours only). A newly seen tile also starts
- * the throttled background check (steamUpdates.onSteamSurfaceShown).
+ * the throttled background check (steamUpdates.onSurfaceShown).
  *
  * No Decky plugin patches home tiles, so this works on the DOM: a tile is
  * found by its image, `customimages/<appid>.png` (or `p.png`, the portrait
@@ -154,7 +154,7 @@ export function startHomeBadge(): () => void {
       const { steamGame, steamAutoLink, steamBadge: badge } = settingsStore.get().settings;
       const games = linkedSteamGames(addonSession.get().installations, steamGame, steamAutoLink);
       const tiles = badge ? games.flatMap((game) => findTiles(doc!, game.appId)) : [];
-      const { summary, checking } = getSteamUpdates();
+      const { summary, checking } = steamUpdates.get();
       const state = tiles.length ? badgeState(summary, checking) : null;
       for (const old of Array.from(doc.querySelectorAll(`.${BADGE_CLASS}`))) {
         if (!state || !tiles.includes(old.parentElement as HTMLElement)) {
@@ -172,7 +172,7 @@ export function startHomeBadge(): () => void {
         }
       }
       if (appeared) {
-        onSteamSurfaceShown();
+        steamUpdates.onSurfaceShown();
       }
     } catch (err) {
       warnOnce("render failed", err);
@@ -213,7 +213,7 @@ export function startHomeBadge(): () => void {
   };
   const offSettings = settingsStore.subscribe(linksChanged);
   const offInstallations = addonSession.subscribe(linksChanged);
-  const offUpdates = subscribeSteamUpdates(schedule);
+  const offUpdates = steamUpdates.subscribe(schedule);
   schedule();
 
   return () => {
