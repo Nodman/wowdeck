@@ -1,10 +1,10 @@
+import { engine } from "../../engineLink";
 import { RowChevron } from "../RowGlyph";
 import { UpdateDot } from "../UpdateDot";
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { ButtonItem, Field, Navigation, PanelSection, ToggleField } from "@decky/ui";
 
 import type { CurseForgeAuthStatus, ProviderInfo } from "../../types";
-import { engine } from "../../engineLink";
 import { toastError } from "../../toast";
 import { curseForgeRowState } from "../../curseForgeAuthUi";
 import { descriptionStyle } from "../../steamTheme";
@@ -19,7 +19,7 @@ import { GitHubSourceRow } from "./GitHubSource";
 
 import { startTsmSignIn } from "../../tsmSignIn";
 import { openPanel } from "../../openPanel";
-import { putTsmStatus, useTsmStatus } from "../../tsmReads";
+import { tsmModule, useTsmStatus } from "../../tsmReads";
 
 const signInBrowser = {
   open: (url: string) => Navigation.NavigateToExternalWeb(url),
@@ -56,12 +56,6 @@ export function SourcesSection({
   // The Options jump (optionsJump.ts) marks the rows it navigated for; they
   // blink until the jump is used, focus moves on, or this section leaves.
   const { data: tsm } = useTsmStatus();
-  // Each answer may have changed which sources are usable.
-  const reloadRef = useRef(reloadProviders);
-  reloadRef.current = reloadProviders;
-  useEffect(() => {
-    if (tsm) void reloadRef.current();
-  }, [tsm]);
   const jump = useSyncExternalStore(subscribeSourceJump, sourceJump);
   useEffect(() => clearSourceJump, []);
 
@@ -100,12 +94,8 @@ export function SourcesSection({
                       ? {
                           onSecondaryActionDescription: "Sign out",
                           onSecondaryButton: () => {
-                            void engine
-                              .rpc("tradeskillmaster.signOut")
-                              .then(async (status) => {
-                                putTsmStatus(status);
-                                await reloadProviders();
-                              })
+                            void tsmModule
+                              .signOut()
                               .catch((e) => toastError("Couldn't sign out of TradeSkillMaster", e));
                           },
                         }
@@ -170,7 +160,6 @@ export function SourcesSection({
                             !tsm?.account
                           ) {
                             await startTsmSignIn(engine.rpc, signInBrowser);
-                            putTsmStatus(await engine.rpc("tradeskillmaster.status"));
                           } else {
                             await sourcesStore.setEnabled(p.id, checked);
                           }
@@ -183,8 +172,11 @@ export function SourcesSection({
                       <ButtonItem
                         layout="below"
                         onClick={async () => {
-                          await startTsmSignIn(engine.rpc, signInBrowser);
-                          putTsmStatus(await engine.rpc("tradeskillmaster.status"));
+                          try {
+                            await startTsmSignIn(engine.rpc, signInBrowser);
+                          } catch (e) {
+                            toastError("Couldn't sign in to TradeSkillMaster", e);
+                          }
                         }}
                       >
                         Sign in
@@ -194,8 +186,11 @@ export function SourcesSection({
                       <ButtonItem
                         layout="below"
                         onClick={async () => {
-                          putTsmStatus(await engine.rpc("tradeskillmaster.cancel"));
-                          await reloadProviders();
+                          try {
+                            await tsmModule.cancel();
+                          } catch (e) {
+                            toastError("Couldn't cancel TradeSkillMaster sign-in", e);
+                          }
                         }}
                       >
                         Cancel sign-in

@@ -211,6 +211,17 @@ their hooks. The lifecycle reads time through `src/clock.ts`, so tests drive
 it through the typed RPC with a manual clock and a deferred transport
 (`src/testSupport/`).
 
+TradeSkillMaster has one frontend module, `createTsmModule` in
+`src/tsmReads.ts`, constructed with the typed RPC and clock. Options, the
+nav badge, Get Addons and the sign-in browser share its status resource and
+one poll loop. The browser remains a viewer while the QAM is closed.
+The module reloads sources on status transitions and invalidates status,
+account, destination and cleanup reads on `tradeskillmaster.changed`.
+The Manage dialog reads the same account resource as the destination.
+TradeSkillMaster installs and removals use the addon session's operation
+guard, so installation switching waits and recovery answers refresh the
+session's recovery state.
+
 ## WowUp relationship
 
 `wowup/` is a pinned WowUp checkout used as a read-only reference during

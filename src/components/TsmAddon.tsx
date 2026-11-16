@@ -1,3 +1,4 @@
+import { backendErrorMessage } from "../errors";
 import { useEffect, useRef, useState, useSyncExternalStore, type ComponentProps } from "react";
 import {
   ButtonItem,
@@ -59,7 +60,7 @@ function UninstallConfirmation({
       ))}
       {preview?.length === 0 && <Field label="No eligible follows to remove." />}
       {!!error && (
-        <Field label="Could not preview account cleanup. You can still remove the addons." />
+        <Field label="Couldn't preview account cleanup. You can still remove the addons." />
       )}
     </ConfirmModal>
   );
@@ -79,7 +80,7 @@ const REFRESH_WAIT_MS = 60_000;
 
 /** The destination uses the same install operation and records as My Addons. */
 export function TsmAddon({ installationId }: { installationId: string }) {
-  const { data: read } = useTsmDestination(installationId);
+  const { data: read, error: destinationError, loading } = useTsmDestination(installationId);
   const data = read ?? undefined;
   const [refreshing, setRefreshing] = useState(false);
   const [now, setNow] = useState(Date.now());
@@ -122,7 +123,10 @@ export function TsmAddon({ installationId }: { installationId: string }) {
   };
   const addonChanges = useEngineChange("addons.changed");
   useEffect(() => {
-    void loadAddons().catch(() => setError("Could not read installed addons"));
+    void loadAddons().catch((error) => {
+      backendErrorMessage(error);
+      setError("Couldn't read installed addons");
+    });
   }, [installationId, addonChanges]);
   const remove = async (
     cleanupFollows = false,
@@ -131,14 +135,14 @@ export function TsmAddon({ installationId }: { installationId: string }) {
     setBusy(true);
     setError(undefined);
     try {
-      const result = await engine.rpc("tradeskillmaster.removeAddons", {
-        installationId,
-        ...(cleanupFollows ? { cleanupFollows, cleanupPreview } : {}),
-      });
+      const result = await addonSession.installElsewhere(installationId, () =>
+        engine.rpc("tradeskillmaster.removeAddons", {
+          installationId,
+          ...(cleanupFollows ? { cleanupFollows, cleanupPreview } : {}),
+        }),
+      );
       if (result.operations.some((op) => op.status === "failed" || op.cleanupWarning)) {
-        setError(
-          "Could not uninstall completely. Check My Addons for removal errors and recovery.",
-        );
+        setError("Couldn't uninstall completely. Check My Addons for removal errors and recovery.");
       }
       if (result.cleanup) {
         const left = result.cleanup.leftBehind.map(
@@ -150,7 +154,7 @@ export function TsmAddon({ installationId }: { installationId: string }) {
         setError(
           local +
             " " +
-            (result.cleanup.error ??
+            ((result.cleanup.error ? "Couldn't clean up account follows." : undefined) ??
               (left.length
                 ? "Account cleanup was not completed."
                 : "Selected account follows removed.")) +
@@ -158,8 +162,9 @@ export function TsmAddon({ installationId }: { installationId: string }) {
         );
       }
       await loadAddons();
-    } catch {
-      setError("Could not uninstall. Check My Addons for removal errors and recovery.");
+    } catch (error) {
+      backendErrorMessage(error);
+      setError("Couldn't uninstall. Check My Addons for removal errors and recovery.");
     } finally {
       setBusy(false);
     }
@@ -214,10 +219,14 @@ export function TsmAddon({ installationId }: { installationId: string }) {
             )
             .then(async (result) => {
               if (currentInstallation.current !== installationId) return;
-              if (result.operation.status === "failed") setError("Installation failed. Try again.");
+              if (result.operation.status === "failed")
+                setError("Couldn't install TradeSkillMaster. Try again.");
               await loadAddons();
             })
-            .catch(() => setError("Installation failed. Try again."))
+            .catch((error) => {
+              backendErrorMessage(error);
+              setError("Couldn't install TradeSkillMaster. Try again.");
+            })
             .finally(() => setBusy(false));
         }}
       >
@@ -247,9 +256,10 @@ export function TsmAddon({ installationId }: { installationId: string }) {
                 onClick={() => {
                   setRefreshing(true);
                   setFollowError(undefined);
-                  void engine.rpc("tradeskillmaster.refresh", { installationId }).catch(() => {
+                  void engine.rpc("tradeskillmaster.refresh", { installationId }).catch((error) => {
+                    backendErrorMessage(error);
                     setRefreshing(false);
-                    setFollowError("Could not refresh auction data");
+                    setFollowError("Couldn't refresh auction data");
                   });
                 }}
               >
@@ -304,11 +314,12 @@ export function TsmAddon({ installationId }: { installationId: string }) {
                   followed: !realm.followed,
                 })
                 .then((result) => putTsmDestination(installationId, result))
-                .catch(() =>
+                .catch((error) => {
+                  backendErrorMessage(error);
                   setFollowError(
-                    "TradeSkillMaster could not change this follow. Your account may have reached its realm limit.",
-                  ),
-                )
+                    "Couldn't change this follow. Your account may have reached its realm limit.",
+                  );
+                })
                 .finally(() => setFollowBusy(false));
             }}
           >
@@ -337,6 +348,16 @@ export function TsmAddon({ installationId }: { installationId: string }) {
   return (
     <>
       <TsmAccount />
+      {loading && !data && (
+        <PanelSectionRow>
+          <Field label="Loading auction data…" />
+        </PanelSectionRow>
+      )}
+      {destinationError && (
+        <PanelSectionRow>
+          <Field label={destinationError} />
+        </PanelSectionRow>
+      )}
       {actions}
       {status}
       {error && (

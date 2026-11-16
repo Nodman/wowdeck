@@ -1,39 +1,12 @@
-import { createStore, type Store } from "./store";
-import { engine } from "./engineLink";
+import { tsmStatus } from "./tsmReads";
 import type { TradeSkillMasterAuthStatus } from "../backend/src/api/contracts";
-import type { Rpc } from "./services/envelope";
 
-export interface TsmSession extends Pick<Store<TradeSkillMasterAuthStatus>, "get" | "subscribe"> {
-  /**
-   * Read the sign-in state (one read at a time); `notify` hears a session
-   * that has just ended.
-   */
-  read(notify: () => void): Promise<void>;
-}
-
-export function createTsmSession(deps: { rpc: Rpc }): TsmSession {
-  const store = createStore<TradeSkillMasterAuthStatus>({ state: "off", account: null });
-  let reading = false;
-  return {
-    get: store.get,
-    subscribe: store.subscribe,
-    async read(notify) {
-      if (reading) return;
-      reading = true;
-      try {
-        const status = await deps.rpc("tradeskillmaster.status");
-        const previous = store.get().state;
-        store.set(status);
-        if (status.state === "signedOut" && previous !== "signedOut") notify();
-      } finally {
-        reading = false;
-      }
-    },
-  };
-}
-
-/** The one TradeSkillMaster sign-in state, wired to the engine. */
-export const tsmSession = createTsmSession({ rpc: engine.rpc });
+/** All views subscribe to the same status resource and poll loop. */
+const offStatus: TradeSkillMasterAuthStatus = { state: "off", account: null };
+export const tsmSession = {
+  get: () => tsmStatus.get("account").data ?? offStatus,
+  subscribe: (listener: () => void) => tsmStatus.subscribe("account", listener),
+};
 export const tsmActionRequired = (status: TradeSkillMasterAuthStatus): boolean =>
   status.state === "signedOut";
 export const tsmOptionsSources = (): string[] => ["TradeSkillMaster"];

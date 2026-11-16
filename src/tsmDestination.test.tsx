@@ -346,7 +346,7 @@ test("destination shows account allowance, waiting data and live freshness for t
     await act(async () => modal!.props.onOK());
     root = createRoot(container);
     await act(async () => root.render(<TsmAddon installationId="active" />));
-    expect(container.textContent).toContain("Could not uninstall");
+    expect(container.textContent).toContain("Couldn't uninstall");
     expect(uninstall()).toBeDefined();
     removalFails = false;
     await act(async () => modalRoot?.unmount());
@@ -460,7 +460,7 @@ test("Manage confirms remote follows, cancels without mutation, preserves failur
     await click("Unfollow");
     failUnfollow = true;
     await click("Unfollow");
-    expect(document.body.textContent).toContain("Could not unfollow");
+    expect(document.body.textContent).toContain("Couldn't unfollow");
     expect(document.body.textContent).toContain("7 realms followed");
     failUnfollow = false;
     await click("Unfollow");
@@ -496,7 +496,7 @@ for (const outcome of ["success", "failure", "cleanup unavailable"]) {
     installed = true;
     removalFails = outcome === "failure";
     cleanupError =
-      outcome === "cleanup unavailable" ? "Could not check account follows." : undefined;
+      outcome === "cleanup unavailable" ? "Couldn't check account follows." : undefined;
     holdRemoval = new Promise<void>((resolve) => {
       finish = resolve;
     });
@@ -524,10 +524,12 @@ for (const outcome of ["success", "failure", "cleanup unavailable"]) {
       expect(container.textContent).toContain("Working…");
       await act(async () => finish());
       expect(container.textContent).not.toContain("Working…");
-      if (removalFails) expect(container.textContent).toContain("Could not uninstall completely");
+      if (removalFails) expect(container.textContent).toContain("Couldn't uninstall completely");
       else expect(container.textContent).toContain("Install TradeSkillMaster");
       if (cleanupError) {
-        expect(container.textContent).toContain("Addons removed. Could not check account follows.");
+        expect(container.textContent).toContain(
+          "Addons removed. Couldn't clean up account follows.",
+        );
         expect(container.textContent).toContain(
           "Account follows left behind: Cleanup realm · EU · Retail",
         );

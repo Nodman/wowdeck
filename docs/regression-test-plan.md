@@ -1121,3 +1121,16 @@ These cases have not been run on hardware.
 | Inspect a hidden installation's details, then unhide | Auto updates displays off and is disabled with an explanation. Unhiding restores its previous setting, whether on or off. |
 | Restart or detect installations again | Auto updates and Hide choices survive. Newly found installations default to Auto updates on and Hide off. |
 | Run Update all installations | Hidden and auto-off installations are included. |
+
+### TradeSkillMaster shared session
+
+| Action | Expected |
+| --- | --- |
+| Start sign-in in Options, let the browser close the QAM, finish sign-in and return | The browser closes, the source is on, and Options, its nav dot and the destination agree about sign-in. |
+| Revoke the session elsewhere while viewing the destination, then visit Options | Both show signed out and offer sign-in. One session-ended notification appears. |
+| Keep Manage followed realms open while auction data changes | Manage and the destination both show the current followed realms. |
+| Remove TradeSkillMaster, close and reopen the QAM while it runs | Working stays visible. Installation switching waits, and a recovery-required answer appears in My Addons. |
+
+These rows require the final device run. This change was checked with lint,
+formatting, typechecking, typed-fake tests and a build only. Layout, controller
+navigation and Steam browser return have not been checked on hardware.

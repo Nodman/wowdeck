@@ -1,3 +1,6 @@
+import { tsmStatus } from "./tsmReads";
+import type { KeyedResource } from "./keyedResource";
+import type { TradeSkillMasterAuthStatus } from "../backend/src/api/contracts";
 import type { Rpc } from "./services/envelope";
 
 export interface SignInBrowser {
@@ -5,15 +8,7 @@ export interface SignInBrowser {
   /** Leaves the browser page the sign-in finished on. */
   close(): void;
 }
-export interface SignInTimers {
-  setInterval(fn: () => void, ms: number): unknown;
-  clearInterval(handle: unknown): void;
-}
-const timers: SignInTimers = {
-  setInterval: (fn, ms) => setInterval(fn, ms),
-  clearInterval: (h) => clearInterval(h as ReturnType<typeof setInterval>),
-};
-let watching: unknown;
+let watching: (() => void) | undefined;
 
 /**
  * Opens the authorize page in Steam's browser and, once the engine reports
@@ -25,7 +20,7 @@ let watching: unknown;
 export async function startTsmSignIn(
   rpc: Rpc,
   browser: SignInBrowser,
-  clock: SignInTimers = timers,
+  status: KeyedResource<TradeSkillMasterAuthStatus> = tsmStatus,
 ): Promise<void> {
   const { authorizeUrl } = await rpc("tradeskillmaster.signIn");
   try {
@@ -34,22 +29,14 @@ export async function startTsmSignIn(
     await rpc("tradeskillmaster.cancel");
     throw error;
   }
-  clock.clearInterval(watching);
-  let reading = false;
-  const handle = clock.setInterval(() => {
-    if (reading) return;
-    reading = true;
-    void rpc("tradeskillmaster.status")
-      .then((status) => {
-        if (watching !== handle || status.state === "signingIn") return;
-        clock.clearInterval(handle);
-        watching = undefined;
-        if (status.state === "signedIn") browser.close();
-      })
-      .catch(() => {})
-      .finally(() => {
-        reading = false;
-      });
-  }, 1000);
-  watching = handle;
+  watching?.();
+  status.put("account", { state: "signingIn", account: null });
+  const stop = status.subscribe("account", () => {
+    const state = status.get("account").data?.state;
+    if (!state || state === "signingIn") return;
+    stop();
+    watching = undefined;
+    if (state === "signedIn") browser.close();
+  });
+  watching = stop;
 }

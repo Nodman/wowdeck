@@ -1,4 +1,7 @@
-import { systemClock } from "./clock";
+import type { Rpc } from "./services/envelope";
+import { sourcesStore } from "./sourcesStore";
+import { backendErrorMessage } from "./errors";
+import { systemClock, type Clock } from "./clock";
 import { engine } from "./engineLink";
 import { createKeyedResource } from "./keyedResource";
 import type {
@@ -15,43 +18,92 @@ import { useResource } from "./useResource";
  */
 const ACCOUNT_KEY = "account";
 
-const STATUS_POLL_MS = 1000;
+export function createTsmModule(deps: {
+  rpc: Rpc;
+  clock: Clock;
+  reloadSources(): Promise<void>;
+  sessionEnded?(): void;
+}) {
+  let previous: TradeSkillMasterAuthStatus["state"] | undefined;
+  const status = createKeyedResource<TradeSkillMasterAuthStatus>({
+    read: () => deps.rpc("tradeskillmaster.status"),
+    errorText: (e) => {
+      backendErrorMessage(e);
+      return "Couldn't read the TradeSkillMaster sign-in";
+    },
+    clock: deps.clock,
+    pollMs: 1000,
+    onData: (_key, data) => {
+      if (data.state === "signedOut" && previous !== "signedOut") deps.sessionEnded?.();
+      if (data.state !== previous) void deps.reloadSources();
+      previous = data.state;
+    },
+  });
+  const account = createKeyedResource<TradeSkillMasterAccount>({
+    read: () => deps.rpc("tradeskillmaster.account", {}),
+    errorText: (e) => {
+      backendErrorMessage(e);
+      return "Couldn't load followed realms";
+    },
+    clock: deps.clock,
+  });
+  const destination = createKeyedResource<TradeSkillMasterDestination>({
+    read: (installationId) => deps.rpc("tradeskillmaster.destination", { installationId }),
+    errorText: (e) => {
+      backendErrorMessage(e);
+      return "Couldn't load auction data";
+    },
+    clock: deps.clock,
+  });
+  const cleanupPreview = createKeyedResource<TradeSkillMasterAccount["follows"]>({
+    read: (installationId) => deps.rpc("tradeskillmaster.cleanupPreview", { installationId }),
+    errorText: (e) => {
+      backendErrorMessage(e);
+      return "Couldn't preview account cleanup";
+    },
+    clock: deps.clock,
+  });
+  return {
+    status,
+    account,
+    destination,
+    cleanupPreview,
+    changed() {
+      for (const resource of [status, account, destination, cleanupPreview]) resource.invalidate();
+      void deps.reloadSources();
+    },
+    async signOut() {
+      status.put(ACCOUNT_KEY, await deps.rpc("tradeskillmaster.signOut"));
+      void deps.reloadSources();
+    },
+    async cancel() {
+      status.put(ACCOUNT_KEY, await deps.rpc("tradeskillmaster.cancel"));
+      void deps.reloadSources();
+    },
+  };
+}
 
-/** The sign-in state, read again every second while a view shows it. */
-export const tsmStatus = createKeyedResource<TradeSkillMasterAuthStatus>({
-  read: () => engine.rpc("tradeskillmaster.status"),
-  errorText: () => "Couldn't read the TradeSkillMaster sign-in",
+let sessionEnded = () => {};
+export const onTsmSessionEnded = (notify: () => void) => {
+  sessionEnded = notify;
+};
+
+export const tsmModule = createTsmModule({
+  rpc: engine.rpc,
   clock: systemClock,
-  pollMs: STATUS_POLL_MS,
+  reloadSources: sourcesStore.load,
+  sessionEnded: () => sessionEnded(),
 });
-
-const account = createKeyedResource<TradeSkillMasterAccount>({
-  read: () => engine.rpc("tradeskillmaster.account", {}),
-  errorText: () => "Could not load followed realms",
-  clock: systemClock,
-});
-
-/** One installation's destination data (realms, regions, freshness). */
-export const tsmDestination = createKeyedResource<TradeSkillMasterDestination>({
-  read: (installationId) => engine.rpc("tradeskillmaster.destination", { installationId }),
-  errorText: () => "Could not load auction data",
-  clock: systemClock,
-});
-
-/** The follows an uninstall could remove, per installation. */
-export const tsmCleanupPreview = createKeyedResource<TradeSkillMasterAccount["follows"]>({
-  read: (installationId) => engine.rpc("tradeskillmaster.cleanupPreview", { installationId }),
-  errorText: () => "Could not preview account cleanup",
-  clock: systemClock,
-});
-
-engine.events.on("tradeskillmaster.changed", () => {
-  account.invalidate();
-  tsmDestination.invalidate();
-  tsmCleanupPreview.invalidate();
-});
+export const {
+  status: tsmStatus,
+  account,
+  destination: tsmDestination,
+  cleanupPreview: tsmCleanupPreview,
+} = tsmModule;
+engine.events.on("tradeskillmaster.changed", tsmModule.changed);
 
 export const useTsmStatus = () => useResource(tsmStatus, ACCOUNT_KEY);
+export const putTsmAccount = (data: TradeSkillMasterAccount) => account.put(ACCOUNT_KEY, data);
 export const useTsmAccount = () => useResource(account, ACCOUNT_KEY);
 export const useTsmDestination = (installationId: string) =>
   useResource(tsmDestination, installationId);

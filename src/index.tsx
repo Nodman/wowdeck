@@ -1,4 +1,4 @@
-import { sourcesStore } from "./sourcesStore";
+import { onTsmSessionEnded } from "./tsmReads";
 import { tsmSession, tsmActionRequired } from "./tsmSession";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
@@ -79,20 +79,6 @@ function Content() {
   // the tab bar mirrors it to stay at its collapsed width instead of
   // stretching across the widened panel.
   const tsm = useSyncExternalStore(tsmSession.subscribe, tsmSession.get);
-  useEffect(() => {
-    const read = () => {
-      const previous = tsmSession.get().state;
-      void tsmSession
-        .read(() => pluginToast("TradeSkillMaster session ended", "Sign in again in Options."))
-        .then(() => {
-          if (previous !== tsmSession.get().state) void sourcesStore.load();
-        })
-        .catch(() => {});
-    };
-    read();
-    const timer = setInterval(read, 1000);
-    return () => clearInterval(timer);
-  }, []);
   const [wide, setWide] = useState(widening.wide);
   useEffect(() => subscribeWidening(setWide), []);
   // Valve's scroll buffer below Decky's sticky title, re-measured on every
@@ -451,3 +437,5 @@ export default definePlugin(() => {
     },
   };
 });
+
+onTsmSessionEnded(() => pluginToast("TradeSkillMaster session ended", "Sign in again in Options."));

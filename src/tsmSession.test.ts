@@ -1,10 +1,7 @@
+import { createTsmModule } from "./tsmReads";
+import { createManualClock } from "./testSupport/manualClock";
 import { test, expect } from "bun:test";
-import {
-  createTsmSession,
-  tsmActionRequired,
-  tsmOptionsSources,
-  tsmDestinationVisible,
-} from "./tsmSession";
+import { tsmActionRequired, tsmOptionsSources, tsmDestinationVisible } from "./tsmSession";
 import { createFakeEngine } from "./testSupport/fakeEngine";
 import type { TradeSkillMasterAuthStatus } from "../backend/src/api/contracts";
 import { BROWSE_TABS } from "./browseSessionState";
@@ -15,8 +12,14 @@ test("RPC signed-out transitions notify once, clear on sign-in, and jump to the 
   let state: TradeSkillMasterAuthStatus["state"] = "signedOut";
   let notifications = 0;
   const fake = createFakeEngine({ "tradeskillmaster.status": () => ({ state, account: null }) });
-  const tsmSession = createTsmSession({ rpc: fake.rpc });
-  const read = () => tsmSession.read(() => notifications++);
+  const module = createTsmModule({
+    rpc: fake.rpc,
+    clock: createManualClock(),
+    reloadSources: async () => {},
+    sessionEnded: () => notifications++,
+  });
+  const tsmSession = { get: () => module.status.get("account").data! };
+  const read = () => module.status.refresh("account");
   await read();
   await read();
   expect(notifications).toBe(1);

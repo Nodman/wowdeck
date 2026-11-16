@@ -1,3 +1,4 @@
+import { backendErrorMessage } from "../errors";
 import { TsmIcon } from "../icons/TsmIcon";
 import { useEffect, useState } from "react";
 import {
@@ -15,7 +16,7 @@ import {
 } from "@decky/ui";
 import type { TradeSkillMasterAccount } from "../../backend/src/api/contracts";
 import { engine } from "../engineLink";
-import { useTsmAccount } from "../tsmReads";
+import { putTsmAccount, useTsmAccount } from "../tsmReads";
 import { browseFocusView, holdBrowseSessionForModal } from "../browseSessionState";
 import { FocusRow, FocusSlot } from "./FocusSlot";
 import { STEAM } from "../steamTheme";
@@ -38,7 +39,8 @@ function ManageFollows({
   initial: TradeSkillMasterAccount;
   closeModal: () => void;
 }) {
-  const [account, setAccount] = useState(initial);
+  const { data } = useTsmAccount();
+  const account = data ?? initial;
   const [selected, setSelected] = useState<TradeSkillMasterAccount["follows"][number]>();
   const [busy, setBusy] = useState(false);
   const [lastRealm, setLastRealm] = useState<string>();
@@ -112,10 +114,13 @@ function ManageFollows({
                     auctionHouseType: selected.auctionHouseType,
                   })
                   .then((result) => {
-                    setAccount(result);
+                    putTsmAccount(result);
                     setSelected(undefined);
                   })
-                  .catch(() => setError("Could not unfollow this realm. Try again."))
+                  .catch((error) => {
+                    backendErrorMessage(error);
+                    setError("Couldn't unfollow this realm. Try again.");
+                  })
                   .finally(() => setBusy(false));
               }}
             >
