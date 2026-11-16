@@ -1793,8 +1793,6 @@ export type UpdateAllProgress = {
 export interface EventMap {
   /** An automatic update ran and updated or failed something (WF-02). */
   "addons.autoUpdated": { result: AutoUpdateResult };
-  "operation.completed": { result: OperationResult };
-  "operation.failed": { result: OperationResult };
   "tradeskillmaster.changed": Record<string, never>;
   "addons.changed": { addonIds: string[] };
   /**

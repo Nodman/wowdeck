@@ -133,11 +133,11 @@ const service = new AddonService(
     autoUpdated: (result) => server.emit("addons.autoUpdated", { result }),
     updateAllProgress: (progress) => server.emit("addons.updateAllProgress", progress),
     operationResult: (result: OperationResult) => {
-      server.emit(result.status === "failed" ? "operation.failed" : "operation.completed", { result });
       // Surface recent failures in diagnostics — result.error is
       // already a short, pre-sanitized message (see AddonService's
       // existing error handling), never raw request/response bodies or
-      // secrets.
+      // secrets. Not emitted on the wire (#242): each action's own
+      // answer carries its result.
       if (result.status === "failed" && result.error) {
         recentErrors.record(result.addonId ? `addon:${result.addonId}` : "addons.operation", result.error);
       }

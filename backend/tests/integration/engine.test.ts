@@ -349,8 +349,10 @@ describe("engine JSONL integration", () => {
     expect(existsSync(join(addonsPath, "MockLib", "MockLib.toc"))).toBe(true);
     expect(readFileSync(join(addonsPath, "MockAddon", "init.lua"), "utf-8")).toContain("1.1.0");
 
-    // the result event was emitted
-    expect(events.some((e) => e.event === "operation.completed")).toBe(true);
+    // #242: the dead operation result events are never emitted; each
+    // action's own answer carries its result instead.
+    expect(events.map((e) => e.event)).not.toContain("operation.completed");
+    expect(events.map((e) => e.event)).not.toContain("operation.failed");
   });
 
   test("installed addon listed as managed, no update", async () => {
@@ -374,6 +376,8 @@ describe("engine JSONL integration", () => {
     const upd = await send("addons.updateAll");
     expect(upd.result.operations).toHaveLength(1);
     expect(upd.result.operations[0].status).toBe("updated");
+    // #242: updates report through the answer, never as operation events.
+    expect(events.map((e) => e.event)).not.toContain("operation.completed");
 
     res = await send("addons.list");
     const updated = res.result.addons.find((a: any) => a.name === "MockAddon");

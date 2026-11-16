@@ -34,7 +34,7 @@ import { RecoveryNotice } from "./components/RecoveryNotice";
 import { QAM_DROPDOWN_BELOW_VALUE } from "./components/dropdownValue";
 import { STEAM_NO_TRANSFORM_SCROLL, useScrollBuffer } from "./components/ScrollBuffer";
 import { wtfLifecycle } from "./wtfSession";
-import { wtfCompletedToast } from "./wtfText";
+import { wtfCompletedToast } from "./wtfOutcome";
 import { patchGamePage } from "./steamGamePage";
 import { autoUpdateText } from "./steamLibrary";
 import { settingsStore } from "./settings";
@@ -135,14 +135,7 @@ function Content() {
     })();
   }, []);
 
-  // backend events -> refresh addon list when operations complete.
-  //
-  // Deliberately does not also toast on "operation.completed"/
-  // "operation.failed" directly: OperationResult never carries an
-  // addon name, only `addonId` (its internal UUID), so a toast built
-  // from it here could only ever show an unreadable id. Every action
-  // (addonActions.ts) already awaits its own call and shows its own
-  // correctly-named toast.
+  // backend events -> refresh the addon list when addons change.
   useEffect(() => {
     return api.onBackendEvent((event) => {
       if (event.event === "addons.changed") {

@@ -17,7 +17,7 @@ import { ScrollBuffer } from "./ScrollBuffer";
 import { descriptionStyle } from "../steamTheme";
 import { wowupModalStyleCss } from "../sharedStyles";
 import { pluginToast, toastError } from "../toast";
-import { formatBytes } from "../wtfFormat";
+import { formatBytes } from "../text";
 import { previousVersionsUsageLine, type PreviousVersionsUsage } from "../previousVersions";
 
 const TITLE = "Previous versions";

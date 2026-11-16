@@ -23,7 +23,7 @@ import { FocusSlot } from "./FocusSlot";
 import { requestFocus } from "../focusMemory";
 import { openPanel } from "../openPanel";
 import { TsmAccount } from "./TsmAccount";
-import { formatWhen } from "../wtfFormat";
+import { formatWhen } from "../text";
 
 function UninstallConfirmation({
   installationId,
