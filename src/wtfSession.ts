@@ -1,5 +1,7 @@
 import { useCallback, useSyncExternalStore } from "react";
-import * as api from "./services/backend";
+import { engine } from "./engineLink";
+import { pluginToast } from "./toast";
+import { wtfCompletedToast } from "./wtfOutcome";
 import { systemClock } from "./clock";
 import type { KeyedResource, ResourceSnapshot } from "./keyedResource";
 import { addonSession } from "./session";
@@ -9,10 +11,23 @@ import { createWtfLifecycle, type WtfOperationSnapshot } from "./wtfLifecycle";
 
 /** The one Settings backup lifecycle (wtfLifecycle.ts), wired to the engine. */
 export const wtfLifecycle = createWtfLifecycle({
-  rpc: api.rpc,
+  rpc: engine.rpc,
   clock: systemClock,
   writeSettings: settingsStore.write,
   readSettings: settingsStore.load,
+});
+
+// WTF backup and restore jobs run in the engine and outlive any panel or
+// modal: their progress and outcome reach the lifecycle at module scope.
+engine.events.on("wtf.progress", (params) =>
+  wtfLifecycle.handleEvent({ event: "wtf.progress", params }),
+);
+engine.events.on("wtf.completed", (params) => {
+  wtfLifecycle.handleEvent({ event: "wtf.completed", params });
+  const toast = wtfCompletedToast(params);
+  if (toast) {
+    pluginToast(toast.title, toast.body);
+  }
 });
 
 // An installation that is gone keeps no lists, and late answers can't refill them.

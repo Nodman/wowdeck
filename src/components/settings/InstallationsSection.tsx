@@ -3,7 +3,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { Field, PanelSection, PanelSectionRow } from "@decky/ui";
 import { FaSearchLocation } from "react-icons/fa";
 import type { Installation } from "../../types";
-import * as api from "../../services/backend";
+import { engine } from "../../engineLink";
 import { descriptionStyle } from "../../steamTheme";
 import { pluginToast, toastError } from "../../toast";
 import { addonSession } from "../../session";
@@ -46,7 +46,7 @@ export function InstallationsSection({ installations, selectedId, onChanged }: P
     selected &&
     openInstallationDetails(selected, addonCounts(), {
       onUpdate: async (changes) => {
-        const { installation } = await api.rpc("installations.update", {
+        const { installation } = await engine.rpc("installations.update", {
           installationId: selected.id,
           ...changes,
         });
@@ -63,7 +63,7 @@ export function InstallationsSection({ installations, selectedId, onChanged }: P
       return;
     }
     try {
-      await api.rpc("addons.refresh", { installationId: selected.id });
+      await engine.rpc("addons.refresh", { installationId: selected.id });
       await onChanged();
       pluginToast("Addons rescanned", selected.displayName);
     } catch (e) {
@@ -77,7 +77,7 @@ export function InstallationsSection({ installations, selectedId, onChanged }: P
     }
     confirmRemoveInstallation(selected.displayName, async () => {
       try {
-        await api.rpc("installations.remove", { installationId: selected.id });
+        await engine.rpc("installations.remove", { installationId: selected.id });
         pluginToast("Installation removed", "WoW files weren't touched");
         await onChanged();
       } catch (e) {

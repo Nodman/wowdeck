@@ -1,6 +1,7 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test";
 import type { FoundInstallation, Installation } from "./types";
+import { createFakeEngine } from "./testSupport/fakeEngine";
 import {
   addInstallation,
   addWowFolder,
@@ -19,21 +20,17 @@ function fakes(opts: {
   addResult?: Installation[];
   addError?: Error;
 }) {
-  const calls: { method: string; params: unknown }[] = [];
+  const fake = createFakeEngine({
+    "installations.inspect": { found: opts.found ?? [] },
+    "installations.add": opts.addError ?? { installations: opts.addResult ?? [] },
+  });
+  const calls = fake.calls;
   const toasts: string[] = [];
   const modals: AddInstallationRequest[] = [];
   let reloads = 0;
   const deps: AddWowFolderDeps = {
     pickFolder: async () => opts.picked,
-    rpc: (async (method: string, params: unknown) => {
-      calls.push({ method, params });
-      if (method === "installations.inspect") return { found: opts.found ?? [] };
-      if (method === "installations.add") {
-        if (opts.addError) throw opts.addError;
-        return { installations: opts.addResult ?? [] };
-      }
-      throw new Error(`unexpected ${method}`);
-    }) as AddWowFolderDeps["rpc"],
+    rpc: fake.rpc,
     openModal: (request) => modals.push(request),
     toast: (title, body = "") => toasts.push(body ? `${title} | ${body}` : title),
     toastError: (title) => toasts.push(`error: ${title}`),
@@ -43,6 +40,7 @@ function fakes(opts: {
     },
   };
   return {
+    fake,
     deps,
     calls,
     toasts,
@@ -107,9 +105,7 @@ describe("Add WoW folder", () => {
 
   test("a folder the engine can't inspect counts as unrecognised", async () => {
     const f = fakes({ picked: "/mnt/odd", found: [] });
-    f.deps.rpc = (async () => {
-      throw new Error("unreadable");
-    }) as unknown as AddWowFolderDeps["rpc"];
+    f.fake.answers["installations.inspect"] = new Error("unreadable");
     await addWowFolder(f.deps);
     expect(f.modals).toEqual([{ path: "/mnt/odd", displayName: "odd", gameType: null }]);
   });

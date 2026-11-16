@@ -4,11 +4,14 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { JSDOM } from "jsdom";
 import { fakeDeckyUi } from "./testing/fakeDeckyUi";
+import { connectEngine } from "./engineLink";
+import { createFakeEngine } from "./testSupport/fakeEngine";
+import type {
+  TradeSkillMasterAccount,
+  TradeSkillMasterDestination,
+} from "../backend/src/api/contracts";
+import type { Addon } from "./types";
 
-const listeners = new Set<(event: { event: string }) => void>();
-const notify = (event: { event: string }) => {
-  for (const listener of listeners) listener(event);
-};
 let updated: number | null = null;
 let installed = true;
 let modal: ReactElement<{ onOK(): void; strDescription: string }> | undefined;
@@ -31,127 +34,130 @@ let qamOpens = 0;
 let cancelModal: (() => void) | undefined;
 let modalRoot: ReturnType<typeof createRoot> | undefined;
 
-mock.module("./services/backend", () => ({
-  rpc: async (method: string, params?: { installationId?: string }) => {
-    if (method === "tradeskillmaster.account") await holdAccount;
-    if (method === "tradeskillmaster.destination") await holdDestination;
-    if (method === "addons.list") await holdAddons;
-    if (method === "tradeskillmaster.cleanupPreview")
-      return [
-        {
-          realmId: 1,
-          name: "Cleanup realm",
-          region: "EU",
-          gameVersion: "Retail",
-          auctionHouseType: "ALL",
-        },
-      ];
-    if (method === "tradeskillmaster.removeAddons") {
-      removals.push(params);
-      await holdRemoval;
-      if (!removalFails) installed = false;
-      return {
-        operations: [{ status: removalFails ? "failed" : "removed" }],
-        cleanup: (params as { cleanupFollows?: boolean })?.cleanupFollows
-          ? {
-              error: cleanupError,
-              removed: [],
-              leftBehind: [
+/** What the fake account, destination and follow calls answer: one fixture for all. */
+const accountFixture = (params: { installationId?: string }) => {
+  requests.push(params.installationId ?? "");
+  return {
+    account: "Fixture",
+    follows: followed
+      ? [
+          ...(extraFollows
+            ? [
                 {
                   realmId: 1,
-                  name: "Cleanup realm",
+                  name: "First realm",
                   region: "EU",
                   gameVersion: "Retail",
                   auctionHouseType: "ALL",
                 },
-              ],
-            }
-          : undefined,
-      };
-    }
-    if (method === "tradeskillmaster.refresh") {
-      refreshRequests.push(params);
-      return;
-    }
-    if (method === "addons.list")
-      return {
-        addons: installed
-          ? [
-              {
-                folderName: "TradeSkillMaster_AppHelper",
-                providerId: "TradeSkillMaster",
-                externalId: "TradeSkillMaster",
-                version: "4.14",
-                channel: "stable",
-              },
-            ]
-          : [],
-      };
-    if (method === "tradeskillmaster.unfollow") {
-      followRequests.push(params);
-      if (failUnfollow) throw new Error("fixture failure");
-      followed = false;
-    }
-    if (method === "tradeskillmaster.setFollow") {
-      followRequests.push(params);
-      await holdFollow;
-      followed = !followed;
-    }
-    requests.push(params?.installationId ?? "");
-    return {
-      account: "Fixture",
-      follows: followed
-        ? [
-            ...(extraFollows
-              ? [
-                  {
-                    realmId: 1,
-                    name: "First realm",
-                    region: "EU",
-                    gameVersion: "Retail",
-                    auctionHouseType: "ALL",
-                  },
-                ]
-              : []),
+              ]
+            : []),
+          {
+            realmId: 99,
+            name: "Remote realm",
+            region: "US",
+            gameVersion: "Classic Era",
+            auctionHouseType: "HORDE",
+          },
+        ]
+      : [],
+    tier: "gold",
+    followedCount: followed ? 7 : 6,
+    allowance: unlimited ? null : 25,
+    realms:
+      params?.installationId === "empty"
+        ? []
+        : [
             {
-              realmId: 99,
-              name: "Remote realm",
-              region: "US",
-              gameVersion: "Classic Era",
-              auctionHouseType: "HORDE",
+              id: 1,
+              name:
+                params?.installationId === "inactive" ? "Other installation" : "Der Abyssische Rat",
+              auctionHouseType: params?.installationId === "inactive" ? "HORDE" : "ALL",
+              followed,
+              owned: false,
+              declined: false,
+              updated,
+            },
+          ],
+    regions: params?.installationId === "empty" ? [] : [{ id: 2, name: "EU", updated }],
+  };
+};
+const fake = createFakeEngine({
+  "tradeskillmaster.account": async () => {
+    await holdAccount;
+    return accountFixture({}) as unknown as TradeSkillMasterAccount;
+  },
+  "tradeskillmaster.destination": async (params) => {
+    await holdDestination;
+    return accountFixture(params) as unknown as TradeSkillMasterDestination;
+  },
+  "addons.list": async () => {
+    await holdAddons;
+    return {
+      addons: installed
+        ? [
+            {
+              folderName: "TradeSkillMaster_AppHelper",
+              providerId: "TradeSkillMaster",
+              externalId: "TradeSkillMaster",
+              version: "4.14",
+              channel: "stable",
             },
           ]
         : [],
-      tier: "gold",
-      followedCount: followed ? 7 : 6,
-      allowance: unlimited ? null : 25,
-      realms:
-        params?.installationId === "empty"
-          ? []
-          : [
+    } as { addons: Addon[] };
+  },
+  "tradeskillmaster.cleanupPreview": () => [
+    {
+      realmId: 1,
+      name: "Cleanup realm",
+      region: "EU",
+      gameVersion: "Retail",
+      auctionHouseType: "ALL",
+    },
+  ],
+  "tradeskillmaster.removeAddons": async (params) => {
+    removals.push(params);
+    await holdRemoval;
+    if (!removalFails) installed = false;
+    return {
+      operations: [{ status: removalFails ? "failed" : "removed" }],
+      cleanup: (params as { cleanupFollows?: boolean })?.cleanupFollows
+        ? {
+            error: cleanupError,
+            removed: [],
+            leftBehind: [
               {
-                id: 1,
-                name:
-                  params?.installationId === "inactive"
-                    ? "Other installation"
-                    : "Der Abyssische Rat",
-                auctionHouseType: params?.installationId === "inactive" ? "HORDE" : "ALL",
-                followed,
-                owned: false,
-                declined: false,
-                updated,
+                realmId: 1,
+                name: "Cleanup realm",
+                region: "EU",
+                gameVersion: "Retail",
+                auctionHouseType: "ALL",
               },
             ],
-      regions: params?.installationId === "empty" ? [] : [{ id: 2, name: "EU", updated }],
-    };
+          }
+        : undefined,
+    } as never;
   },
-  onBackendEvent: (listener: typeof notify) => {
-    listeners.add(listener);
-    return () => {
-      listeners.delete(listener);
-    };
+  "tradeskillmaster.refresh": (params) => {
+    refreshRequests.push(params);
   },
-}));
+  "tradeskillmaster.unfollow": (params) => {
+    followRequests.push(params);
+    if (failUnfollow) throw new Error("fixture failure");
+    followed = false;
+    return accountFixture({}) as unknown as TradeSkillMasterAccount;
+  },
+  "tradeskillmaster.setFollow": async (params) => {
+    followRequests.push(params);
+    await holdFollow;
+    followed = !followed;
+    return accountFixture(params) as unknown as TradeSkillMasterDestination;
+  },
+});
+connectEngine(fake);
+const notify = (event: { event: "tradeskillmaster.changed" }) =>
+  fake.emit({ ...event, params: {} });
 mock.module("@decky/ui", () => ({
   ...fakeDeckyUi,
   Navigation: {

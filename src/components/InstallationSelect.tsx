@@ -1,5 +1,5 @@
 import { FaEyeSlash } from "react-icons/fa";
-import { rpc } from "../services/backend";
+import { engine } from "../engineLink";
 import { toastError } from "../toast";
 import { showChoiceMenu } from "./choiceMenu";
 import { useRef, useState, useSyncExternalStore } from "react";
@@ -55,7 +55,8 @@ export function InstallationSelect({
                   if (pending.current) return;
                   pending.current = true;
                   setSaving(true);
-                  void rpc("installations.update", { installationId: selected.id, hidden: false })
+                  void engine
+                    .rpc("installations.update", { installationId: selected.id, hidden: false })
                     .then(() => session.reloadAll())
                     .catch((e) => toastError("Couldn't unhide installation", e))
                     .finally(() => {

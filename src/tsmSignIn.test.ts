@@ -1,17 +1,16 @@
 import { test, expect } from "bun:test";
 import { startTsmSignIn } from "./tsmSignIn";
-import type { Rpc } from "./services/envelope";
+import { createFakeEngine } from "./testSupport/fakeEngine";
+import type { TradeSkillMasterAuthStatus } from "../backend/src/api/contracts";
 
-function harness(states: string[]) {
+function harness(states: TradeSkillMasterAuthStatus["state"][]) {
   const opened: string[] = [];
   let closed = 0;
   let tick: (() => void) | undefined;
-  const rpc = (async (method: string) => {
-    if (method === "tradeskillmaster.signIn")
-      return { authorizeUrl: "https://fixture.invalid/authorize" };
-    if (method === "tradeskillmaster.status") return { state: states.shift(), account: null };
-    throw new Error(method);
-  }) as Rpc;
+  const { rpc } = createFakeEngine({
+    "tradeskillmaster.signIn": { authorizeUrl: "https://fixture.invalid/authorize" },
+    "tradeskillmaster.status": () => ({ state: states.shift()!, account: null }),
+  });
   const browser = { open: (url: string) => opened.push(url), close: () => closed++ };
   const clock = {
     setInterval: (fn: () => void) => ((tick = fn), 1),

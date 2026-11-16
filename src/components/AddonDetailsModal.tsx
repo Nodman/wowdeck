@@ -12,7 +12,7 @@ import {
 import { canScroll } from "../scrollEdge";
 import { FaChevronLeft, FaChevronRight } from "react-icons/fa";
 import type { DetailsResult, SearchResult, SearchResultScreenshot } from "../types";
-import * as api from "../services/backend";
+import { engine } from "../engineLink";
 import { useLazyResource } from "../useLazyResource";
 import { dependencyNote, headerFacts, type DependencyNote } from "../detailsHeader";
 import { gameVersionTagList, type VersionTag } from "../gameVersionTags";
@@ -271,7 +271,7 @@ export function AddonDetailsModal({
     loading: descLoading,
     error: descError,
   } = useLazyResource(() =>
-    api
+    engine
       .rpc("addons.getDescription", {
         providerId: result.providerId,
         externalId: result.externalId,
@@ -283,7 +283,7 @@ export function AddonDetailsModal({
     loading: cngLoading,
     error: cngError,
   } = useLazyResource(() =>
-    api
+    engine
       .rpc("addons.getChangelog", {
         installationId: activeInstallationId(),
         providerId: result.providerId,
@@ -308,7 +308,7 @@ export function AddonDetailsModal({
   const { value: relNames, error: relError } = useLazyResource(
     providerRels &&
       (() =>
-        api
+        engine
           .rpc("addons.lookup", {
             installationId: activeInstallationId(),
             providerId: providerRels.providerId,

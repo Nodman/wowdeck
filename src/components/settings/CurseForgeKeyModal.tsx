@@ -14,12 +14,12 @@ import {
 } from "@decky/ui";
 import { FaSave, FaSync, FaTrash } from "react-icons/fa";
 import type { CurseForgeAuthStatus } from "../../types";
-import * as api from "../../services/backend";
+import { engine } from "../../engineLink";
 import { descriptionStyle } from "../../steamTheme";
 import { wowupModalStyleCss } from "../../sharedStyles";
 import { pluginToast, toastError } from "../../toast";
 import { settingsStore } from "../../settings";
-import { setSourceEnabled } from "../../sourcesStore";
+import { sourcesStore } from "../../sourcesStore";
 import { userKeyStatusLabel } from "../../curseForgeAuthUi";
 import { requestFocus } from "../../focusMemory";
 import { CURSE_KEY_ROW } from "../../optionsJump";
@@ -67,7 +67,7 @@ export function CurseForgeKeyModal({ auth: initialAuth, onChanged, closeModal }:
   // The status may have moved on since the row was drawn.
   useEffect(() => {
     const request = ++statusRequest.current;
-    void api
+    void engine
       .rpc("curseforge.authStatus")
       .then((next) => request === statusRequest.current && setAuth(next))
       .catch(() => {
@@ -81,7 +81,7 @@ export function CurseForgeKeyModal({ auth: initialAuth, onChanged, closeModal }:
   const reloadAuth = async () => {
     const request = ++statusRequest.current;
     try {
-      const next = await api.rpc("curseforge.authStatus");
+      const next = await engine.rpc("curseforge.authStatus");
       if (request === statusRequest.current) setAuth(next);
     } catch {
       /* Keep the last status. */
@@ -97,7 +97,7 @@ export function CurseForgeKeyModal({ auth: initialAuth, onChanged, closeModal }:
     setBusy(true);
     try {
       // Instant feedback before saving; settings.set records the real check.
-      const test = await api.rpc("providers.testApiKey", {
+      const test = await engine.rpc("providers.testApiKey", {
         providerId: PROVIDER_ID.Curse,
         apiKey: candidate,
       });
@@ -112,7 +112,7 @@ export function CurseForgeKeyModal({ auth: initialAuth, onChanged, closeModal }:
         test.ok ? "" : "Couldn't verify it just now (network or CurseForge issue). Saved anyway.",
       );
       try {
-        await setSourceEnabled(api.rpc, PROVIDER_ID.Curse, true);
+        await sourcesStore.setEnabled(PROVIDER_ID.Curse, true);
       } catch (e) {
         toastError("Couldn't turn on CurseForge", e);
       }
@@ -150,7 +150,7 @@ export function CurseForgeKeyModal({ auth: initialAuth, onChanged, closeModal }:
     const request = ++statusRequest.current;
     setRechecking(true);
     try {
-      const next = await api.rpc("curseforge.recheckBundledKey");
+      const next = await engine.rpc("curseforge.recheckBundledKey");
       if (request === statusRequest.current) setAuth(next);
       await onChanged();
     } catch (e) {

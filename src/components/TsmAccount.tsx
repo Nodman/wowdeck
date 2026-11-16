@@ -14,7 +14,8 @@ import {
   showModal,
 } from "@decky/ui";
 import type { TradeSkillMasterAccount } from "../../backend/src/api/contracts";
-import { rpc, onBackendEvent } from "../services/backend";
+import { engine } from "../engineLink";
+import { useEngineChange } from "../engineChanges";
 import { browseFocusView, holdBrowseSessionForModal } from "../browseSessionState";
 import { FocusRow, FocusSlot } from "./FocusSlot";
 import { STEAM } from "../steamTheme";
@@ -105,10 +106,11 @@ function ManageFollows({
               onClick={() => {
                 setBusy(true);
                 setError(undefined);
-                void rpc("tradeskillmaster.unfollow", {
-                  realmId: selected.realmId,
-                  auctionHouseType: selected.auctionHouseType,
-                })
+                void engine
+                  .rpc("tradeskillmaster.unfollow", {
+                    realmId: selected.realmId,
+                    auctionHouseType: selected.auctionHouseType,
+                  })
                   .then((result) => {
                     setAccount(result);
                     setSelected(undefined);
@@ -150,29 +152,24 @@ function ManageFollows({
 export function TsmAccount() {
   const [account, setAccount] = useState<TradeSkillMasterAccount>();
   const [error, setError] = useState<string>();
+  const tsmChanges = useEngineChange("tradeskillmaster.changed");
   useEffect(() => {
     let active = true;
-    const load = () => {
-      void rpc("tradeskillmaster.account", {})
-        .then((result) => {
-          if (active) {
-            setAccount(result);
-            setError(undefined);
-          }
-        })
-        .catch(() => {
-          if (active) setError("Could not load followed realms");
-        });
-    };
-    load();
-    const off = onBackendEvent((event) => {
-      if (event.event === "tradeskillmaster.changed") load();
-    });
+    void engine
+      .rpc("tradeskillmaster.account", {})
+      .then((result) => {
+        if (active) {
+          setAccount(result);
+          setError(undefined);
+        }
+      })
+      .catch(() => {
+        if (active) setError("Could not load followed realms");
+      });
     return () => {
       active = false;
-      off();
     };
-  }, []);
+  }, [tsmChanges]);
   return (
     <>
       <h2>

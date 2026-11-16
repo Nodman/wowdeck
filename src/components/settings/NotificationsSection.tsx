@@ -3,12 +3,12 @@ import { useSyncExternalStore } from "react";
 import { Field, PanelSection, ToggleField } from "@decky/ui";
 
 import type { Diagnostics, Installation } from "../../types";
-import * as api from "../../services/backend";
+import { engine } from "../../engineLink";
 import { descriptionStyle } from "../../steamTheme";
 import { formatList } from "../../search";
 import { settingsStore } from "../../settings";
 import { sourcesStore } from "../../sourcesStore";
-import { loadDiagnostics } from "../../diagnosticsStore";
+import { diagnosticsStore } from "../../diagnosticsStore";
 import { COMPANION_PROVIDER_ID, companionStatus } from "../../companionInstall";
 import { offerCompanionInstall } from "../companionInstallModal";
 import { rememberFocus } from "../../focusMemory";
@@ -73,11 +73,11 @@ export function NotificationsSection({
             rememberFocus(VIEW, "updatesInsideWow");
             if (offer) {
               offerCompanionInstall(offer, {
-                rpc: api.rpc,
+                rpc: engine.rpc,
                 hubEnabled: () =>
                   sourcesStore.get().providers?.find((p) => p.id === COMPANION_PROVIDER_ID)
                     ?.enabled ?? false,
-                reloadDiagnostics: () => loadDiagnostics(api.rpc),
+                reloadDiagnostics: () => diagnosticsStore.load(),
                 reloadAddons: onChanged,
               });
             }

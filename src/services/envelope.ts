@@ -65,3 +65,6 @@ export function bridgeVia(raw: (method: string, ...args: unknown[]) => Promise<u
       (await raw(method, ...args)) as BridgeMethodMap[K]["result"] | BackendErrorEnvelope,
     );
 }
+
+/** The typed caller `bridgeVia` builds, for main.py's own methods. */
+export type Bridge = ReturnType<typeof bridgeVia>;

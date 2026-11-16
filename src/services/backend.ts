@@ -1,8 +1,10 @@
 /**
- * The frontend's way to the two processes behind it, both typed by
- * backend/src/api/contracts.ts. `rpc` calls an engine method (`MethodMap`),
- * which main.py forwards unchanged; `bridge` calls a method main.py answers
- * itself (`BridgeMethodMap`).
+ * Decky's adapter to the two processes behind the frontend, both typed by
+ * backend/src/api/contracts.ts. Its `rpc` calls an engine method
+ * (`MethodMap`), which main.py forwards unchanged; its `bridge` calls a
+ * method main.py answers itself (`BridgeMethodMap`). Only the plugin's load
+ * (index.tsx) imports this module; everything else reaches the engine
+ * through engineLink.ts.
  *
  * Decky turns any exception raised in main.py into the useless text
  * "Python Exception", so main.py returns engine failures as
@@ -12,20 +14,23 @@
 
 import { callable, addEventListener, removeEventListener } from "@decky/api";
 import type { BridgeEventMap } from "../../backend/src/api/contracts";
+import type { EngineLink } from "../engineLink";
 import { bridgeVia, rpcVia } from "./envelope";
 
-/** Call an engine method: `rpc("addons.update", { addonId })`. */
-export const rpc = rpcVia(callable<[method: string, params?: object], unknown>("rpc"));
-
-/** Call one of main.py's own methods: `bridge("read_text_file", path)`. */
-export const bridge = bridgeVia((method, ...args) => callable<unknown[], unknown>(method)(...args));
-
-export function onBackendEvent(
-  handler: (event: BridgeEventMap["backend_event"]) => void,
-): () => void {
-  const listener = addEventListener<[payload: BridgeEventMap["backend_event"]]>(
-    "backend_event",
-    handler,
-  );
-  return () => removeEventListener("backend_event", listener);
+/**
+ * Decky's engine adapter, built when the plugin loads (index.tsx connects
+ * it): `callable` and `addEventListener` reach main.py only inside Steam.
+ */
+export function deckyEngineLink(): EngineLink {
+  return {
+    rpc: rpcVia(callable<[method: string, params?: object], unknown>("rpc")),
+    bridge: bridgeVia((method, ...args) => callable<unknown[], unknown>(method)(...args)),
+    subscribe(handler) {
+      const listener = addEventListener<[payload: BridgeEventMap["backend_event"]]>(
+        "backend_event",
+        handler,
+      );
+      return () => removeEventListener("backend_event", listener);
+    },
+  };
 }

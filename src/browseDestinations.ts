@@ -7,6 +7,7 @@ import { resetFileImport } from "./fileImportState";
 import { defaultDiscoverSource, validDiscoverSources } from "./sourceAccess";
 import { sourcesStore } from "./sourcesStore";
 import type { Rpc } from "./services/envelope";
+import { engine } from "./engineLink";
 import type { SearchResult } from "./types";
 import { providerDisplayName } from "../backend/src/api/providers";
 
@@ -17,8 +18,8 @@ import { providerDisplayName } from "../backend/src/api/providers";
  * destination owns its requests: only the latest one's answer is applied,
  * also when it lands after a remount, and a reset (another installation, see
  * resetBrowseSessionState) drops the answers still on the way, which belong
- * to the old one. The actions here make the engine requests, through the rpc
- * they are handed; the tabs (components/browseTabs.tsx) only render and call
+ * to the old one. The requests (createBrowseRequests) go through the rpc they
+ * are built with; the tabs (components/browseTabs.tsx) only render and call
  * them.
  */
 export interface Destination<S> extends Pick<Store<S>, "get" | "subscribe" | "patch"> {
@@ -90,7 +91,7 @@ export const searchDestination = createDestination<SearchView>(() => ({
 }));
 
 /** Search an installation for the current query (ignored while one runs, or when it is blank). */
-export function runSearch(installationId: string, rpc: Rpc): Promise<void> {
+function runSearch(rpc: Rpc, installationId: string): Promise<void> {
   const { query, searching } = searchDestination.get();
   const trimmed = query.trim();
   if (!trimmed || searching) {
@@ -196,7 +197,7 @@ function requestPage(
 }
 
 /** Fetch the next page for an installation (ignored while one is loading). */
-export function loadMore(installationId: string, id: ListDestinationId, rpc: Rpc): Promise<void> {
+function loadMore(rpc: Rpc, installationId: string, id: ListDestinationId): Promise<void> {
   const list = LISTS[id];
   const { loading, results: shown } = list.get();
   if (loading) {
@@ -290,7 +291,7 @@ export function setUrl(url: string): void {
 }
 
 /** Look up the current address for an installation (ignored while a lookup runs, or when it is blank). */
-export function resolveUrl(installationId: string, rpc: Rpc): Promise<void> {
+function resolveUrl(rpc: Rpc, installationId: string): Promise<void> {
   const { url, resolving } = urlDestination.get();
   const trimmed = url.trim();
   if (!trimmed || resolving) {
@@ -306,6 +307,27 @@ export function resolveUrl(installationId: string, rpc: Rpc): Promise<void> {
     (e) => ({ resolving: false, error: errorText(e) }),
   );
 }
+
+/** The destinations' engine requests, over the rpc they are built with. */
+export interface BrowseRequests {
+  /** Search an installation for the current query (ignored while one runs, or when it is blank). */
+  runSearch(installationId: string): Promise<void>;
+  /** Fetch a list's next page for an installation (ignored while one is loading). */
+  loadMore(installationId: string, id: ListDestinationId): Promise<void>;
+  /** Look up the current address for an installation (ignored while a lookup runs, or when it is blank). */
+  resolveUrl(installationId: string): Promise<void>;
+}
+
+export function createBrowseRequests(deps: { rpc: Rpc }): BrowseRequests {
+  return {
+    runSearch: (installationId) => runSearch(deps.rpc, installationId),
+    loadMore: (installationId, id) => loadMore(deps.rpc, installationId, id),
+    resolveUrl: (installationId) => resolveUrl(deps.rpc, installationId),
+  };
+}
+
+/** The Get Addons requests, wired to the engine. */
+export const browseRequests = createBrowseRequests({ rpc: engine.rpc });
 
 /** Another installation: every destination's results belonged to the old one. */
 export function resetDestinations(): void {

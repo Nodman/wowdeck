@@ -10,9 +10,6 @@ mock.module("@decky/api", () => ({
   openFilePicker: async () => {
     throw new Error("cancel");
   },
-  callable: () => async () => ({}),
-  addEventListener: () => {},
-  removeEventListener: () => {},
 }));
 mock.module("@decky/ui", () => deckyUiStub);
 

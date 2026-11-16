@@ -10,7 +10,7 @@ import {
   ToggleField,
   showModal,
 } from "@decky/ui";
-import * as api from "../services/backend";
+import { engine } from "../engineLink";
 import { settingsStore } from "../settings";
 import { createStore } from "../store";
 import { ScrollBuffer } from "./ScrollBuffer";
@@ -39,7 +39,7 @@ let usageRequest = 0;
 export function loadPreviousVersionsUsage(): Promise<void> {
   const request = ++usageRequest;
   previousVersionsStore.patch({ usage: null, error: false });
-  return api
+  return engine
     .rpc("rollback.status")
     .then((usage) => {
       if (request === usageRequest) previousVersionsStore.patch({ usage, error: false });
@@ -54,7 +54,7 @@ async function clearPreviousVersions(): Promise<void> {
   previousVersionsStore.patch({ clearing: true });
   try {
     const before = previousVersionsStore.get().usage;
-    previousVersionsStore.patch({ usage: await api.rpc("rollback.clear") });
+    previousVersionsStore.patch({ usage: await engine.rpc("rollback.clear") });
     pluginToast(
       "Previous versions cleared",
       before

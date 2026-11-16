@@ -1,5 +1,5 @@
 import { FileSelectionType, openFilePicker } from "@decky/api";
-import * as api from "../services/backend";
+import { engine } from "../engineLink";
 import { pluginToast, toastError } from "../toast";
 import { rememberFocus, requestFocus } from "../focusMemory";
 import { pickerStartPath } from "../pickerStart";
@@ -22,7 +22,7 @@ export function runAddWowFolder(
   overrides: Partial<AddWowFolderDeps> = {},
 ): Promise<void> {
   const deps: AddWowFolderDeps = {
-    rpc: api.rpc,
+    rpc: engine.rpc,
     toast: pluginToast,
     toastError,
     installations,

@@ -14,7 +14,6 @@ import {
 } from "@decky/ui";
 import type { Installation, ProviderInfo } from "../types";
 import { usePaneBarInsets } from "../steamDom/qamBars";
-import * as api from "../services/backend";
 import {
   BROWSE_TABS,
   browseFocusView,
@@ -38,7 +37,7 @@ import {
   setCategory as showCategory,
   setSource,
 } from "../browseDestinations";
-import { loadCategories, loadSources, sourcesStore } from "../sourcesStore";
+import { sourcesStore } from "../sourcesStore";
 import {
   attachQamWidening,
   detachQamWidening,
@@ -204,7 +203,7 @@ export function GetAddonsTab({
     }
   }, [active, providers]);
   useEffect(() => {
-    void loadSources(api.rpc);
+    void sourcesStore.load();
   }, []);
   const { categoryId, sourceId: popularSource } = useSyncExternalStore(
     popularDestination.subscribe,
@@ -235,7 +234,7 @@ export function GetAddonsTab({
   // asked: with every source off there is no list to narrow.
   useEffect(() => {
     if (popularSource && validDiscoverSources(providers).some((p) => p.id === popularSource)) {
-      void loadCategories(activeInstallationId(), api.rpc, popularSource);
+      void sourcesStore.loadCategories(activeInstallationId(), popularSource);
     }
   }, [popularSource, providers]);
 

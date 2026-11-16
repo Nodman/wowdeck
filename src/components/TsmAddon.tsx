@@ -9,7 +9,8 @@ import {
   showModal,
   ToggleField,
 } from "@decky/ui";
-import { rpc, onBackendEvent } from "../services/backend";
+import { engine } from "../engineLink";
+import { useEngineChange } from "../engineChanges";
 import type {
   TradeSkillMasterDestination,
   TradeSkillMasterAccount,
@@ -38,7 +39,8 @@ function UninstallConfirmation({
   const [error, setError] = useState(false);
   useEffect(() => {
     let active = true;
-    void rpc("tradeskillmaster.cleanupPreview", { installationId })
+    void engine
+      .rpc("tradeskillmaster.cleanupPreview", { installationId })
       .then((result) => {
         if (active) setPreview(result);
       })
@@ -102,29 +104,31 @@ export function TsmAddon({ installationId }: { installationId: string }) {
   const currentInstallation = useRef(installationId);
   currentInstallation.current = installationId;
   const requestVersion = useRef(0);
+  const tsmChanges = useEngineChange("tradeskillmaster.changed");
+  const shownChanges = useRef(tsmChanges);
+  const shownInstallation = useRef<string | null>(null);
   useEffect(() => {
     let active = true;
-    setData(undefined);
-    const load = () => {
-      const version = ++requestVersion.current;
-      void rpc("tradeskillmaster.destination", { installationId })
-        .then((result) => {
-          if (active && version === requestVersion.current) setData(result);
-        })
-        .catch(() => {});
-    };
-    load();
-    const off = onBackendEvent((event) => {
-      if (event.event !== "tradeskillmaster.changed") return;
+    if (shownInstallation.current !== installationId) {
+      shownInstallation.current = installationId;
+      setData(undefined);
+    }
+    if (shownChanges.current !== tsmChanges) {
+      shownChanges.current = tsmChanges;
       setRefreshing(false);
       setNow(Date.now());
-      load();
-    });
+    }
+    const version = ++requestVersion.current;
+    void engine
+      .rpc("tradeskillmaster.destination", { installationId })
+      .then((result) => {
+        if (active && version === requestVersion.current) setData(result);
+      })
+      .catch(() => {});
     return () => {
       active = false;
-      off();
     };
-  }, [installationId]);
+  }, [installationId, tsmChanges]);
   const [followBusy, setFollowBusy] = useState(false);
   const [followError, setFollowError] = useState<string>();
   const state = tsmAddonState(installationId);
@@ -134,7 +138,7 @@ export function TsmAddon({ installationId }: { installationId: string }) {
   const setBusy = (busy: boolean) => state.patch({ busy });
   const setError = (error: string | undefined) => state.patch({ error });
   const loadAddons = async () => {
-    const result = await rpc("addons.list", { installationId });
+    const result = await engine.rpc("addons.list", { installationId });
     setAddon(
       result.addons.find((a) =>
         ["TradeSkillMaster", "TradeSkillMaster_AppHelper"].includes(a.folderName),
@@ -142,14 +146,10 @@ export function TsmAddon({ installationId }: { installationId: string }) {
     );
     setLoaded(!result.unverified);
   };
+  const addonChanges = useEngineChange("addons.changed");
   useEffect(() => {
     void loadAddons().catch(() => setError("Could not read installed addons"));
-    const off = onBackendEvent((event) => {
-      if (event.event === "addons.changed")
-        void loadAddons().catch(() => setError("Could not read installed addons"));
-    });
-    return off;
-  }, [installationId]);
+  }, [installationId, addonChanges]);
   const remove = async (
     cleanupFollows = false,
     cleanupPreview?: TradeSkillMasterAccount["follows"],
@@ -157,7 +157,7 @@ export function TsmAddon({ installationId }: { installationId: string }) {
     setBusy(true);
     setError(undefined);
     try {
-      const result = await rpc("tradeskillmaster.removeAddons", {
+      const result = await engine.rpc("tradeskillmaster.removeAddons", {
         installationId,
         ...(cleanupFollows ? { cleanupFollows, cleanupPreview } : {}),
       });
@@ -227,12 +227,13 @@ export function TsmAddon({ installationId }: { installationId: string }) {
           }
           setBusy(true);
           setError(undefined);
-          void rpc("addons.install", {
-            providerId: "TradeSkillMaster",
-            externalId: "TradeSkillMaster",
-            installationId,
-            channel: "stable",
-          })
+          void engine
+            .rpc("addons.install", {
+              providerId: "TradeSkillMaster",
+              externalId: "TradeSkillMaster",
+              installationId,
+              channel: "stable",
+            })
             .then(async (result) => {
               if (currentInstallation.current !== installationId) return;
               if (result.operation.status === "failed") setError("Installation failed. Try again.");
@@ -268,7 +269,7 @@ export function TsmAddon({ installationId }: { installationId: string }) {
                 onClick={() => {
                   setRefreshing(true);
                   setFollowError(undefined);
-                  void rpc("tradeskillmaster.refresh", { installationId }).catch(() => {
+                  void engine.rpc("tradeskillmaster.refresh", { installationId }).catch(() => {
                     setRefreshing(false);
                     setFollowError("Could not refresh auction data");
                   });
@@ -318,12 +319,13 @@ export function TsmAddon({ installationId }: { installationId: string }) {
               ++requestVersion.current;
               setFollowBusy(true);
               setFollowError(undefined);
-              void rpc("tradeskillmaster.setFollow", {
-                installationId,
-                realmId: realm.id,
-                auctionHouseType: realm.auctionHouseType,
-                followed: !realm.followed,
-              })
+              void engine
+                .rpc("tradeskillmaster.setFollow", {
+                  installationId,
+                  realmId: realm.id,
+                  auctionHouseType: realm.auctionHouseType,
+                  followed: !realm.followed,
+                })
                 .then((result) => {
                   if (currentInstallation.current === installationId) {
                     ++requestVersion.current;

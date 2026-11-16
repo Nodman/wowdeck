@@ -18,7 +18,7 @@ import type {
   RecoveryRetryResult,
   RecoveryVerifyResult,
 } from "../types";
-import * as api from "../services/backend";
+import { engine } from "../engineLink";
 import { addonSession } from "../session";
 import { STEAM, descriptionStyle } from "../steamTheme";
 import { wowupModalStyleCss } from "../sharedStyles";
@@ -54,7 +54,7 @@ function RecoveryDetailsModal({
   const [reads, setReads] = useState(0);
   useEffect(() => {
     let live = true;
-    api
+    engine
       .rpc("installations.recoveryDetails", { installationId: installation.id })
       .then((d) => live && (setDetails(d), setError(null)))
       .catch((e: unknown) => live && setError(e instanceof Error ? e.message : String(e)));

@@ -2,7 +2,7 @@ import { RowChevron } from "../RowGlyph";
 import { useEffect, useSyncExternalStore } from "react";
 import { DialogButton, Field, PanelSection, ToggleField } from "@decky/ui";
 import { FaEllipsisH } from "react-icons/fa";
-import * as api from "../../services/backend";
+import { engine } from "../../engineLink";
 import { descriptionStyle } from "../../steamTheme";
 import { lastAutoUpdateLine } from "../../text";
 import { previousVersionsSummary } from "../../previousVersions";
@@ -61,7 +61,7 @@ export function UpdatesSection() {
         checked,
         pr,
         (next) => void selfUpdateStore.setChannel(next),
-        () => openPrBuildsModal(api.rpc, selfUpdateStore),
+        () => openPrBuildsModal(engine.rpc, selfUpdateStore),
         settingsStore.get().settings.pluginMoveToStableAfterRelease,
         (on) => void settingsStore.save({ pluginMoveToStableAfterRelease: on }),
       );

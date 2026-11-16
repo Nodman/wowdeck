@@ -4,7 +4,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { ButtonItem, Field, Navigation, PanelSection, ToggleField } from "@decky/ui";
 
 import type { CurseForgeAuthStatus, ProviderInfo } from "../../types";
-import * as api from "../../services/backend";
+import { engine } from "../../engineLink";
 import { toastError } from "../../toast";
 import { curseForgeRowState } from "../../curseForgeAuthUi";
 import { descriptionStyle } from "../../steamTheme";
@@ -14,7 +14,7 @@ import { PROVIDER_ID } from "../../../backend/src/api/providers";
 import { SettingsRow } from "./common";
 import { sourceOffDescription } from "../../sourceAccess";
 import { clearSourceJump, sourceJump, sourceRowKey, subscribeSourceJump } from "../../optionsJump";
-import { setSourceEnabled } from "../../sourcesStore";
+import { sourcesStore } from "../../sourcesStore";
 import { GitHubSourceRow } from "./GitHubSource";
 
 import { startTsmSignIn } from "../../tsmSignIn";
@@ -63,7 +63,7 @@ export function SourcesSection({
       if (reading) return;
       reading = true;
       try {
-        const status = await api.rpc("tradeskillmaster.status");
+        const status = await engine.rpc("tradeskillmaster.status");
         if (live) {
           setTsm(status);
           await reloadProviders();
@@ -119,7 +119,7 @@ export function SourcesSection({
                       ? {
                           onSecondaryActionDescription: "Sign out",
                           onSecondaryButton: () => {
-                            void api
+                            void engine
                               .rpc("tradeskillmaster.signOut")
                               .then(async (status) => {
                                 setTsm(status);
@@ -188,10 +188,10 @@ export function SourcesSection({
                             tsm?.state !== "signedIn" &&
                             !tsm?.account
                           ) {
-                            await startTsmSignIn(api.rpc, signInBrowser);
-                            setTsm(await api.rpc("tradeskillmaster.status"));
+                            await startTsmSignIn(engine.rpc, signInBrowser);
+                            setTsm(await engine.rpc("tradeskillmaster.status"));
                           } else {
-                            await setSourceEnabled(api.rpc, p.id, checked);
+                            await sourcesStore.setEnabled(p.id, checked);
                           }
                         } catch (e) {
                           toastError(`Couldn't change ${providerLabel(p.id)}`, e);
@@ -202,8 +202,8 @@ export function SourcesSection({
                       <ButtonItem
                         layout="below"
                         onClick={async () => {
-                          await startTsmSignIn(api.rpc, signInBrowser);
-                          setTsm(await api.rpc("tradeskillmaster.status"));
+                          await startTsmSignIn(engine.rpc, signInBrowser);
+                          setTsm(await engine.rpc("tradeskillmaster.status"));
                         }}
                       >
                         Sign in
@@ -213,7 +213,7 @@ export function SourcesSection({
                       <ButtonItem
                         layout="below"
                         onClick={async () => {
-                          setTsm(await api.rpc("tradeskillmaster.cancel"));
+                          setTsm(await engine.rpc("tradeskillmaster.cancel"));
                           await reloadProviders();
                         }}
                       >

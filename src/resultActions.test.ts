@@ -1,7 +1,8 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test";
-import type { Addon, ReleaseChannel, SearchResult } from "./types";
-import { createAddonSession, type AddonSessionDeps } from "./addonSession";
+import type { Addon, Installation, ReleaseChannel, SearchResult } from "./types";
+import { createFakeEngine } from "./testSupport/fakeEngine";
+import { createAddonSession } from "./addonSession";
 import { resultActions, type ResultActionsDeps } from "./resultActions";
 
 const result = {
@@ -27,26 +28,31 @@ const installedRow = {
  * Installation i1 is active once the test reads the installations.
  */
 function views() {
-  const log: string[] = [];
   let answerInstall!: () => void;
   let reads = 0;
+  const fake = createFakeEngine({
+    "addons.install": () =>
+      new Promise(
+        (r) =>
+          (answerInstall = () =>
+            r({
+              addon: installedRow,
+              operation: { operationId: "op", addonId: "a1", status: "installed", error: null },
+            })),
+      ),
+    "installations.list": { installations: [{ id: "i1", selected: true } as Installation] },
+    "installations.recoveryStatus": { installations: [], stateFile: { status: "readable" } },
+    "installations.select": { installation: null },
+    "addons.list": () => ({ addons: reads++ ? [installedRow] : [] }),
+  });
+  /** The engine calls so far, as "method" or "method channel". */
+  const log = () =>
+    fake.calls.map(({ method, params }) => {
+      const channel = (params as { channel?: string } | undefined)?.channel;
+      return channel ? `${method} ${channel}` : method;
+    });
   const session = createAddonSession({
-    rpc: (async (method: string, params?: { channel?: string }): Promise<unknown> => {
-      log.push(params?.channel ? `${method} ${params.channel}` : method);
-      if (method === "addons.install") {
-        return new Promise<unknown>(
-          (r) =>
-            (answerInstall = () => r({ addon: installedRow, operation: { status: "installed" } })),
-        );
-      }
-      if (method === "installations.list") {
-        return { installations: [{ id: "i1", selected: true }] };
-      }
-      if (method !== "addons.list") {
-        return {};
-      }
-      return { addons: reads++ ? [installedRow] : [] };
-    }) as unknown as AddonSessionDeps["rpc"],
+    rpc: fake.rpc,
     toast: () => {},
     toastError: () => {},
     autoUpdateOn: () => false,
@@ -59,6 +65,7 @@ function views() {
   return {
     session,
     log,
+    clearLog: () => (fake.calls.length = 0),
     picks,
     current: () => resultActions(session.get(), result, deps),
     answerInstall: () => answerInstall(),
@@ -78,11 +85,11 @@ describe("Get Addons result actions from the shared session", () => {
     expect(current()).toMatchObject({ pending: true, installLabel: "Install" });
     // Results' X, captured before the install began, sends nothing.
     await results.onInstall();
-    expect(log.filter((l) => l.startsWith("addons.install"))).toEqual(["addons.install beta"]);
+    expect(log().filter((l) => l.startsWith("addons.install"))).toEqual(["addons.install beta"]);
   });
 
   test("after the install, Details' X follows the refreshed state, not the props it opened with", async () => {
-    const { session, current, answerInstall, log } = views();
+    const { session, current, answerInstall, log, clearLog } = views();
     await session.reloadInstallations();
     await session.reloadAddons();
     const install = current().onInstall();
@@ -93,9 +100,9 @@ describe("Get Addons result actions from the shared session", () => {
       installLabel: "Reinstall",
       tags: ["Installed"],
     });
-    log.length = 0;
+    clearLog();
     void current().onInstall();
-    expect(log).toEqual(["addons.reinstall"]);
+    expect(log()).toEqual(["addons.reinstall"]);
   });
 
   test("X and a channel pick from before an installation switch send nothing during it", async () => {
@@ -108,7 +115,7 @@ describe("Get Addons result actions from the shared session", () => {
     await stale.onInstall();
     picks[0]!("beta");
     await switching;
-    expect(log.filter((l) => l.startsWith("addons.install"))).toEqual([]);
+    expect(log().filter((l) => l.startsWith("addons.install"))).toEqual([]);
     expect(current()).toMatchObject({ pending: false });
   });
 
@@ -158,5 +165,5 @@ test("recovery pauses the shared Results and Details actions", async () => {
   expect(actions.installLabel).toBeNull();
   expect(actions.channelMenu).toBeUndefined();
   await actions.onInstall();
-  expect(log).toEqual([]);
+  expect(log()).toEqual([]);
 });

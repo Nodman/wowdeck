@@ -134,6 +134,14 @@ type); a change is a patch, persisted before the call returns, and a patch
 merges into the stored record, so two writers never overwrite each other's
 fields.
 
+The Addon view (`addons/AddonView.ts`) builds each addon row from the
+installation's records and one AddOns scan. It reads the main folder's TOC,
+works out who needs whom (`libraries.ts`) and picks the game version the
+installation runs. `addons.list` returns its rows. Install, update, Roll
+back and every other addon method return the changed addon's row from it at
+the end of their gate turn, so the answer equals that addon's list row and
+the frontend puts it in place of the row unchanged.
+
 A release archive (`archives/ReleaseArchive.ts`) is one downloaded archive,
 or one copy of a picked file. It reads the hash, the inspection and the
 record the archive installs into. The preview of a picked file, the archive

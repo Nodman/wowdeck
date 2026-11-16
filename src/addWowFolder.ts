@@ -5,7 +5,7 @@
  * added yet.
  */
 
-import type { rpc as backendRpc } from "./services/backend";
+import type { Rpc } from "./services/envelope";
 import type { GameType, Installation } from "./types";
 
 /** What the Add installation modal opens with. */
@@ -19,7 +19,7 @@ export interface AddInstallationRequest {
 export interface AddWowFolderDeps {
   /** The picked folder, or null when the player backed out. */
   pickFolder: () => Promise<string | null>;
-  rpc: typeof backendRpc;
+  rpc: Rpc;
   openModal: (request: AddInstallationRequest) => void;
   toast: (title: string, body?: string) => void;
   toastError: (title: string, e: unknown) => void;

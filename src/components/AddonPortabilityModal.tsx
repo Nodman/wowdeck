@@ -20,7 +20,7 @@ import {
 } from "@decky/ui";
 import { FileSelectionType, openFilePicker } from "@decky/api";
 import type { Installation, ImportComparison, ImportSummary, OperationResult } from "../types";
-import * as api from "../services/backend";
+import { engine } from "../engineLink";
 import { addonSession } from "../session";
 import { copyText } from "../services/clipboard";
 import { errorText } from "../errors";
@@ -142,7 +142,7 @@ function AddonPortabilityModal({
     setExportPayload(null);
     setExportMeta(null);
     try {
-      const result = await api.rpc("addons.export", {
+      const result = await engine.rpc("addons.export", {
         installationId,
       });
       setExportPayload(result.payload);
@@ -192,7 +192,7 @@ function AddonPortabilityModal({
     }
     setSaving(true);
     try {
-      const { ok, path, message } = await api.bridge(
+      const { ok, path, message } = await engine.bridge(
         "save_text_file",
         folder.path,
         defaultExportFilename(installation),
@@ -228,7 +228,7 @@ function AddonPortabilityModal({
     }
     setLoadingFile(true);
     try {
-      const { ok, content, message } = await api.bridge("read_text_file", picked.path);
+      const { ok, content, message } = await engine.bridge("read_text_file", picked.path);
       if (ok && content != null) {
         setImportText(content);
         // Preview immediately rather than waiting for a separate click —
@@ -260,7 +260,7 @@ function AddonPortabilityModal({
     setSummary(null);
     if (!preserveResults) setApplyResults(null);
     try {
-      const { summary: result, error } = await api.rpc("addons.previewImport", {
+      const { summary: result, error } = await engine.rpc("addons.previewImport", {
         importString: trimmed,
         installationId,
       });
@@ -312,7 +312,7 @@ function AddonPortabilityModal({
     }
     setApplying(true);
     try {
-      const { operations, error } = await api.rpc("addons.importAddonList", {
+      const { operations, error } = await engine.rpc("addons.importAddonList", {
         importString: trimmed,
         installationId,
       });

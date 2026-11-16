@@ -2,6 +2,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Addon, OperationResult, SearchResult } from "./types";
 import { createAddonActions, type AddonActionDeps } from "./addonActions";
+import { createFakeEngine, type Answers } from "./testSupport/fakeEngine";
 
 const addon: Addon = {
   id: "a1",
@@ -39,6 +40,14 @@ const addon: Addon = {
   canChangeChannel: false,
 };
 
+/** A dependency as addons.lookup names it. */
+const lib = (externalId: string, name: string) => ({
+  externalId,
+  name,
+  thumbnailUrl: null,
+  installed: false,
+});
+
 const op = (status: OperationResult["status"], error: string | null = null): OperationResult => ({
   operationId: "op",
   addonId: addon.id,
@@ -46,19 +55,12 @@ const op = (status: OperationResult["status"], error: string | null = null): Ope
   error,
 });
 
-/** Actions over a stubbed engine: `answers` maps a method to its result (or an Error to throw). */
-function harness(answers: Record<string, unknown>, autoUpdate = false) {
+/** Actions over the typed fake engine: `answers` answers each method (an Error is a failed call). */
+function harness(answers: Answers, autoUpdate = false) {
   const log: string[] = [];
-  const calls: [string, unknown][] = [];
+  const fake = createFakeEngine(answers);
   const deps: AddonActionDeps = {
-    rpc: (async (method: string, params?: unknown) => {
-      calls.push([method, params]);
-      const answer = answers[method];
-      if (answer instanceof Error) {
-        throw answer;
-      }
-      return answer;
-    }) as AddonActionDeps["rpc"],
+    rpc: fake.rpc,
     toast: (title, body = "") => log.push(body ? `toast ${title} | ${body}` : `toast ${title}`),
     toastError: (title, e) => log.push(`error ${title} | ${e instanceof Error ? e.message : e}`),
     autoUpdateOn: () => autoUpdate,
@@ -78,7 +80,14 @@ function harness(answers: Record<string, unknown>, autoUpdate = false) {
       );
     },
   };
-  return { actions: createAddonActions(deps), log, calls };
+  return {
+    actions: createAddonActions(deps),
+    log,
+    /** The engine calls so far, as [method, params]. */
+    get calls() {
+      return fake.calls.map((c) => [c.method, c.params]);
+    },
+  };
 }
 
 describe("addon actions: update", () => {
@@ -447,7 +456,7 @@ describe("addon actions: install", () => {
     const missing = { ...op("installed"), missingRequiredDependencies: ["1", "2"] };
     const named = harness({
       "addons.install": { addon, operation: missing },
-      "addons.lookup": { addons: [{ name: "LibA" }, { name: "LibB" }] },
+      "addons.lookup": { addons: [lib("1", "LibA"), lib("2", "LibB")] },
     });
     await named.actions.install(result);
     expect(named.calls[1]).toEqual([
@@ -481,7 +490,7 @@ describe("addon actions: install", () => {
           ],
         },
       },
-      "addons.lookup": { addons: [{ name: "LibA" }, { name: "LibB" }] },
+      "addons.lookup": { addons: [lib("1", "LibA"), lib("2", "LibB")] },
     });
     await h.actions.install(result);
     expect(h.log).toContain(

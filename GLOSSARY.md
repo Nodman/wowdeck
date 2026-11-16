@@ -259,6 +259,13 @@ WoWDeck writes, which is a different addon. Options › Notifications offers to
 install it into the active installation from WowUp Hub.
 _Avoid_: companion data addon (that is `wowup_data_addon`), WowUp addon
 
+**Addon row**:
+One addon as My Addons lists it, with its TOC dependencies, who needs it
+and the game version its installation runs. `addons.list` returns the rows,
+and every addon method returns the row of the addon it changed. The engine's
+Addon view (`AddonView.ts`) builds both.
+_Avoid_: "record", which is the stored addon the row is built from.
+
 ## Get Addons rework
 
 **Title bar**:

@@ -3,14 +3,13 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { JSDOM } from "jsdom";
 import { deckyUiStub } from "./deckyUiStub";
+import { connectEngine } from "./engineLink";
+import { createFakeEngine } from "./testSupport/fakeEngine";
 
 mock.module("@decky/api", () => ({
   FileSelectionType: { FILE: 0, FOLDER: 1 },
   toaster: { toast: () => {} },
   openFilePicker: async () => null,
-  callable: () => async () => ({}),
-  addEventListener: () => {},
-  removeEventListener: () => {},
 }));
 mock.module("@decky/ui", () => ({
   ...deckyUiStub,
@@ -22,11 +21,8 @@ mock.module("./session", () => ({
   activeInstallationId: () => "",
   addonSession: { get: () => sessionState, subscribe: () => () => {} },
 }));
-mock.module("./services/backend", () => ({
-  rpc: async () => {
-    throw new Error("Engine offline");
-  },
-}));
+// The engine never answers: Options must still show every section.
+connectEngine(createFakeEngine());
 const { SettingsView } = await import("./components/SettingsView");
 
 test("Options has exactly eight sections in the player's navigation order", async () => {

@@ -2,10 +2,10 @@ import { Focusable } from "@decky/ui";
 import { optionsUpdateDirection } from "../updatePanelNavigation";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { CurseForgeAuthStatus, Installation } from "../types";
-import * as api from "../services/backend";
+import { engine } from "../engineLink";
 import { settingsStore } from "../settings";
-import { loadSources, sourcesStore } from "../sourcesStore";
-import { diagnosticsStore, loadDiagnostics } from "../diagnosticsStore";
+import { sourcesStore } from "../sourcesStore";
+import { diagnosticsStore } from "../diagnosticsStore";
 import { useRestoreFocus } from "./FocusSlot";
 import { WtfBackupSection } from "./WtfBackupSection";
 import { VIEW } from "./settings/common";
@@ -52,12 +52,12 @@ export function SettingsView({ installations, selectedId, onChanged, restoreRows
     // quiet "companion not found" status — system.diagnostics is local-only
     // (no network calls), so this is cheap. The full diagnostics text stays
     // opt-in (About › Diagnostics reads them afresh into the same store).
-    void loadDiagnostics(api.rpc);
+    void diagnosticsStore.load();
   }, []);
 
   const reloadCurseForgeAuth = useCallback(async () => {
     try {
-      setCurseForgeAuth(await api.rpc("curseforge.authStatus"));
+      setCurseForgeAuth(await engine.rpc("curseforge.authStatus"));
     } catch {
       // engine not ready
     }
@@ -67,7 +67,7 @@ export function SettingsView({ installations, selectedId, onChanged, restoreRows
     void reloadCurseForgeAuth();
   }, [reloadCurseForgeAuth]);
 
-  const reloadProviders = useCallback(() => loadSources(api.rpc), []);
+  const reloadProviders = useCallback(() => sourcesStore.load(), []);
 
   useEffect(() => {
     void reloadProviders();

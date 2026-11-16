@@ -12,7 +12,7 @@ import {
   showModal,
 } from "@decky/ui";
 import { FaCopy, FaFolderOpen } from "react-icons/fa";
-import * as api from "../services/backend";
+import { engine } from "../engineLink";
 import { copyText } from "../services/clipboard";
 import { STEAM, descriptionStyle } from "../steamTheme";
 import { wowupModalStyleCss } from "../sharedStyles";
@@ -40,7 +40,7 @@ function FoldersModal({ addon, closeModal }: { addon: Addon; closeModal?: () => 
 
   // Asked again after every Show: a file manager may have opened or closed.
   const load = () =>
-    api.rpc("addons.folders", { installationId: addon.installationId, addonId: addon.id }).then(
+    engine.rpc("addons.folders", { installationId: addon.installationId, addonId: addon.id }).then(
       (value) => setState({ value, error: null }),
       (e) => setState({ value: null, error: errorText(e) }),
     );
@@ -50,7 +50,7 @@ function FoldersModal({ addon, closeModal }: { addon: Addon; closeModal?: () => 
 
   const show = async () => {
     try {
-      const { shown, steamAppId } = await api.rpc("addons.showFolders", {
+      const { shown, steamAppId } = await engine.rpc("addons.showFolders", {
         installationId: addon.installationId,
         addonId: addon.id,
       });

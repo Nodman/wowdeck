@@ -3,16 +3,14 @@ import { useEffect, useRef, useSyncExternalStore } from "react";
 import { openFilePicker } from "@decky/api";
 import { DialogButton, Field, Focusable, PanelSectionRow, Spinner, TextField } from "@decky/ui";
 import type { ArchivePreview, Installation, ProviderInfo, SearchResult } from "../types";
-import * as api from "../services/backend";
+import { engine } from "../engineLink";
 import { installationLabel, searchHelperText } from "../search";
 import { browseFocusView, popupOpening } from "../browseSessionState";
 import { sourceOffNotice, zeroCapabilityScreen } from "../sourceAccess";
 import {
   type ListDestinationId,
+  browseRequests,
   listDestination,
-  loadMore,
-  resolveUrl,
-  runSearch,
   searchDestination,
   setUrl,
   urlDestination,
@@ -169,7 +167,7 @@ export function SearchTab({
   // the results it would cover show.
   const doSearch = () => {
     hideOnScreenKeyboard();
-    return runSearch(activeInstallationId(), api.rpc);
+    return browseRequests.runSearch(activeInstallationId());
   };
   const helper = searchHelperText(sources.providers, installationLabel(installation));
 
@@ -257,7 +255,7 @@ export function ListTab({
     }
   }, [loading]);
 
-  const fetchMore = () => void loadMore(activeInstallationId(), destination, api.rpc);
+  const fetchMore = () => void browseRequests.loadMore(activeInstallationId(), destination);
 
   const onLoadMore = () => {
     if (loading) {
@@ -331,7 +329,7 @@ export function ManualInstallTab({ sources }: { sources: SourceControls }) {
   );
   const resolve = () => {
     hideOnScreenKeyboard();
-    return resolveUrl(activeInstallationId(), api.rpc);
+    return browseRequests.resolveUrl(activeInstallationId());
   };
   const view = browseFocusView("url");
 
@@ -422,7 +420,8 @@ function FileImportSection({
   const browse = () => {
     void browseArchive(
       openFilePicker,
-      (path) => api.rpc("addons.inspectArchive", { installationId: activeInstallationId(), path }),
+      (path) =>
+        engine.rpc("addons.inspectArchive", { installationId: activeInstallationId(), path }),
       view,
     );
   };
@@ -433,7 +432,7 @@ function FileImportSection({
       return;
     }
     void installArchive(
-      (pair) => api.rpc("addons.install", { installationId: activeInstallationId(), ...pair }),
+      (pair) => engine.rpc("addons.install", { installationId: activeInstallationId(), ...pair }),
       () => requireInstallation(onFindInstallations),
     );
   };
@@ -463,7 +462,7 @@ function FileImportSection({
       void removeConflicting(
         remove,
         (path) =>
-          api.rpc("addons.inspectArchive", { installationId: activeInstallationId(), path }),
+          engine.rpc("addons.inspectArchive", { installationId: activeInstallationId(), path }),
         (key) => requestFocus(view, key),
       ).catch((e) => toastError(`Couldn't remove ${name}`, e));
     const find = () => addonSession.get().addons.find((a) => a.id === addonId);
