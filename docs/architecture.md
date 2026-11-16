@@ -51,9 +51,12 @@ addon engine (installations, scanner, TOC, providers, downloads, installer)
 Protocol: newline-delimited JSON requests/responses plus engine-initiated
 events (see `backend/src/api/contracts.ts`). The frontend calls every engine
 method through one typed `rpc(method, params)` (`src/services/backend.ts`),
-which `main.py` forwards unchanged; `main.py` keeps only its own methods
-(`get_status`, `read_text_file`, `save_text_file`). Events are relayed to the frontend as
-`backend_event` via `decky.emit`.
+which `main.py` forwards unchanged. `main.py` answers a few methods itself
+(`get_status`, `read_text_file`, `save_text_file`). The contract declares them
+in `BridgeMethodMap`, and the frontend calls them through the typed
+`bridge(method, ...args)`. Engine events reach the frontend as `backend_event`
+via `decky.emit`, declared in `BridgeEventMap`. `tools/test_main_bridge.py`
+fails when `main.py`'s methods or events stop matching the contract.
 
 ## Engine layout
 
@@ -61,11 +64,17 @@ which `main.py` forwards unchanged; `main.py` keeps only its own methods
 backend/src/
 ├── main.ts              composition root: builds the services, registers the handlers
 ├── api/
-│   ├── contracts.ts     wire protocol (MethodMap, EventMap) — single source of truth
+│   ├── contracts.ts     wire protocol (MethodMap, EventMap, BridgeMethodMap,
+│   │                    BridgeEventMap) — single source of truth
 │   ├── handlers/        RPC handlers per area (system, installations, addons,
 │   │                    providers, settings, wtf, notifications) + deps.ts
 │   ├── gameTypes.ts     game types offered for manual installs, and their labels
-│   └── providers.ts     provider ids and display names
+│   ├── providers.ts     provider ids and display names
+│   ├── version.ts       WoWDeck's version forms, their order and which build
+│   │                    Stable and Beta offer; the engine, the frontend and the
+│   │                    release tools in tools/ share it
+│   └── version-table.json  valid and invalid versions; every version reader
+│                        and writer, Python included, tests against it
 ├── bridge/jsonl.ts      JSONL RPC dispatcher
 ├── diagnostics/         recent-errors buffer for Diagnostics
 └── wow/                 project-owned addon domain (extracted from WowUp)

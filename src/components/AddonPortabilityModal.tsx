@@ -192,7 +192,8 @@ function AddonPortabilityModal({
     }
     setSaving(true);
     try {
-      const { ok, path, message } = await api.saveTextFile(
+      const { ok, path, message } = await api.bridge(
+        "save_text_file",
         folder.path,
         defaultExportFilename(installation),
         exportPayload,
@@ -227,7 +228,7 @@ function AddonPortabilityModal({
     }
     setLoadingFile(true);
     try {
-      const { ok, content, message } = await api.readTextFile(picked.path);
+      const { ok, content, message } = await api.bridge("read_text_file", picked.path);
       if (ok && content != null) {
         setImportText(content);
         // Preview immediately rather than waiting for a separate click —

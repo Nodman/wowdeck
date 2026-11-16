@@ -3,7 +3,13 @@
  * truth). Type-only imports: nothing from the engine ends up in the bundle.
  */
 
-import type { EventMap, EventName, MethodMap, SearchResult } from "../backend/src/api/contracts";
+import type {
+  BridgeEventMap,
+  BridgeMethodMap,
+  EventMap,
+  MethodMap,
+  SearchResult,
+} from "../backend/src/api/contracts";
 
 export type {
   AboutInfo,
@@ -58,7 +64,7 @@ export type AddonFolders = MethodMap["addons.folders"]["result"];
 export type WtfCompleted = EventMap["wtf.completed"];
 
 /** An engine event as main.py relays it (`backend_event`). */
-export type BackendEvent = { [K in EventName]: { event: K; params: EventMap[K] } }[EventName];
+export type BackendEvent = BridgeEventMap["backend_event"];
 
 /**
  * What the Details modal shows: a search result, or one built from an
@@ -70,12 +76,4 @@ export type DetailsResult = Omit<
 >;
 
 /** `get_status` from main.py: the bridge's own health probe, not an engine method. */
-export interface StatusInfo {
-  ok: boolean;
-  backendVersion?: string;
-  protocolVersion?: number;
-  /** The engine's HOME, where file pickers start (pickerStart.ts). */
-  homeDir?: string;
-  code?: string;
-  message?: string;
-}
+export type StatusInfo = BridgeMethodMap["get_status"]["result"];

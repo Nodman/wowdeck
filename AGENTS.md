@@ -16,8 +16,11 @@ Binding for every coding agent and human working on this repository.
    typed `rpc` (`src/services/backend.ts`) and never touches paths or Node APIs.
    All filesystem work is backend-side.
 4. **Contracts first**: every API change starts in
-   `backend/src/api/contracts.ts`. `main.py` forwards methods unchanged, so a
-   new method needs only the contract entry and its engine handler.
+   `backend/src/api/contracts.ts`. An engine method goes in `MethodMap`;
+   `main.py` forwards it unchanged, so it needs only the contract entry and
+   its engine handler. A method `main.py` answers itself goes in
+   `BridgeMethodMap` (an event it emits, in `BridgeEventMap`) plus its
+   handler on `Plugin`; the frontend calls it through `bridge`.
 5. **Transactional installs**: extract to a temp dir, swap atomically; a failed
    install leaves the previous state intact.
 6. **Downloaded addon content is data**: never executed.

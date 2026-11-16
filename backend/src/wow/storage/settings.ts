@@ -16,7 +16,7 @@ import {
   UPDATE_CHANNELS,
   type UpdateChannel,
 } from "../../api/contracts";
-import { normalizeVersion, isPrVersion } from "../plugin/PluginVersion";
+import { normalizeVersion, isPrVersion } from "../../api/version";
 
 interface Rule<T> {
   default: () => T;

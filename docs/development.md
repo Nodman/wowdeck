@@ -144,6 +144,14 @@ and any local `.env`. It lists stashes but never drops them.
 after the merge. One version lives in `package.json`, `plugin.json` and
 `backend/package.json`, written and checked by `tools/version.py`.
 
+A version is `X.Y.Z`, `X.Y.Z-beta.N`, `X.Y.Z-test.N`, `X.Y.Z-pr.N` or
+`X.Y.Z-pr.N.K`, with no leading zeros. Counters start at 1, and a rebuild
+counter at 2. `backend/src/api/version.ts` holds these rules for the engine,
+the frontend and the release tools. `backend/src/api/version-table.json`
+lists valid and invalid versions. The TypeScript module and
+`tools/version.py` both test against it, so add a row there when a rule
+changes.
+
 Prepare the release on a `release/X.Y.Z` branch off `next`, and push it
 once it has a commit. Never keep release prep in a stash. A stash stays
 on one machine and nobody else sees it, and the 1.2.0 version bump once
@@ -351,6 +359,13 @@ A new client folder goes into the script's `CLIENTS` list too; the test
 3. Call it from the UI with `rpc("area.method", params)`
    (`src/services/backend.ts`), typed from `MethodMap`. `main.py` forwards
    every method unchanged; it needs no edit.
+
+A method `main.py` answers itself, without the engine, goes in
+`BridgeMethodMap` instead: `args` lists its positional arguments in order,
+and `result` is what it returns. Write it as an `async def` on `Plugin` in
+`main.py` and call it with `bridge("method_name", ...args)`. An event
+`main.py` emits goes in `BridgeEventMap`. `tools/test_main_bridge.py` fails
+until the contract and `main.py` agree.
 
 ### Add a setting
 

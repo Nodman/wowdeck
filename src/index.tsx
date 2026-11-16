@@ -113,7 +113,10 @@ function Content() {
       try {
         // A panel opened while Decky reloads the plugin asks the old Python
         // side, which never answers (askUntilAnswered.ts).
-        status = await askUntilAnswered(api.getStatus, { timeoutMs: 5000, attempts: 3 });
+        status = await askUntilAnswered(() => api.bridge("get_status"), {
+          timeoutMs: 5000,
+          attempts: 3,
+        });
       } catch {
         // Show the "couldn't start" retry state, not a blank panel.
         setEngineOk(false);

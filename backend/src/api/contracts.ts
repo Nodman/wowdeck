@@ -1824,3 +1824,43 @@ export interface EventMap {
 }
 
 export type EventName = keyof EventMap & string;
+
+/** An engine event as main.py relays it to the frontend. */
+export type EngineEvent = { [K in EventName]: { event: K; params: EventMap[K] } }[EventName];
+
+/**
+ * Methods main.py answers itself instead of forwarding to the engine. Decky
+ * passes their arguments positionally, so each names them in `args`.
+ * tools/test_main_bridge.py fails when main.py's Plugin and this map differ.
+ */
+export interface BridgeMethodMap {
+  /** Health probe. Never fails: a dead or missing engine answers `ok: false`. */
+  get_status: {
+    args: [];
+    result:
+      | ({ ok: true } & MethodMap["system.getStatus"]["result"])
+      | { ok: false; code: string; message: string };
+  };
+  /** Reads a small text file the user picked (Import Addon List's "Load from file"). */
+  read_text_file: {
+    args: [path: string];
+    result: { ok: boolean; content: string | null; message: string };
+  };
+  /**
+   * Writes `content` as a new file in `directory` (Export Addon List's "Save
+   * to file"). Never overwrites: a taken name gets " (n)" before the extension.
+   */
+  save_text_file: {
+    args: [directory: string, filename: string, content: string];
+    result: { ok: boolean; path: string | null; message: string };
+  };
+}
+
+export type BridgeMethodName = keyof BridgeMethodMap & string;
+
+/** Events main.py emits through `decky.emit`, by name. */
+export interface BridgeEventMap {
+  backend_event: EngineEvent;
+}
+
+export type BridgeEventName = keyof BridgeEventMap & string;

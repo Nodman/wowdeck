@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { zipSync } from "fflate";
 import { NetworkError, type DownloadOptions } from "../src/wow/net/network";
 import { stagedFileName, UpdateStager, type DownloadProgress } from "../src/wow/plugin/UpdateStager";
-import { normalizeVersion } from "../src/wow/plugin/PluginVersion";
+import { normalizeVersion } from "../src/api/version";
 import type { PluginUpdateOffer, PluginUpdateSnapshot, UpdateChannel } from "../src/api/contracts";
 import { PluginUpdateCheck, type StagingAnswer } from "../src/wow/notifications/PluginUpdateCheck";
 
