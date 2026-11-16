@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -64,6 +64,108 @@ test("CDP connection, protocol and evaluation failures exit with an error", asyn
     expect(r.text).toMatch(/CEF connection failed|protocol failed|page failed/);
   }
 });
+
+test("key, wheel and enter-if drive input through the shared CDP module", async () => {
+  const key = await cli("key.mjs", ["QuickAccess", "ArrowRight", "2", "0"]);
+  expect(key.code).toBe(0);
+  expect(key.text).toContain("fixture: key ArrowRight");
+  const wheel = await cli("wheel.mjs", ["QuickAccess", "2", "-240"]);
+  expect(wheel.code).toBe(0);
+  expect(wheel.text).toContain("fixture: wheel -240");
+  const entered = await cli("enter-if.mjs", ["QuickAccess", ".gpfocus"]);
+  expect(entered.code).toBe(0);
+  expect(entered.text).toContain("fixture: Enter");
+  expect(entered.text).toContain("entered on .gpfocus");
+  const refused = await cli("enter-if.mjs", ["QuickAccess", ".wowdeck-tab"]);
+  expect(refused.code).toBe(3);
+  expect(refused.text).toContain("REFUSED: focus does not match .wowdeck-tab");
+});
+
+test("walk and step press and measure through one shared connection", async () => {
+  const root = mkdtempSync(path.join(tmpdir(), "wowdeck-press-"));
+  try {
+    const file = path.join(root, "measure.js");
+    writeFileSync(file, `JSON.stringify({ tab: document.querySelector(".wowdeck-tab-selected").textContent })`);
+    const w = await cli("walk.mjs", ["QuickAccess", file, "ArrowDown", "ArrowRight"]);
+    expect(w.code).toBe(0);
+    expect(w.text).toContain('ArrowDown  {"tab":"Get Addons"}');
+    expect(w.text).toContain('ArrowRight {"tab":"Options"}');
+    const s = await cli("step.mjs", ["QuickAccess", "ArrowDown", "2", "0", file]);
+    expect(s.code).toBe(0);
+    expect(s.text).toContain('ArrowDown 1 {"tab":"Get Addons"}');
+    expect(s.text).toContain('ArrowDown 2 {"tab":"Get Addons"}');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("scripts report the module's connection and target errors alike", async () => {
+  const root = mkdtempSync(path.join(tmpdir(), "wowdeck-errors-"));
+  try {
+    const file = path.join(root, "measure.js");
+    writeFileSync(file, "1");
+    for (const [script, args] of [
+      ["key.mjs", ["QuickAccess", "ArrowUp"]],
+      ["wheel.mjs", ["QuickAccess"]],
+      ["enter-if.mjs", ["QuickAccess", ".gpfocus"]],
+      ["walk.mjs", ["QuickAccess", file, "ArrowUp"]],
+      ["step.mjs", ["QuickAccess", "ArrowDown", "1", "0", file]],
+      ["film.mjs", ["QuickAccess", "50", `${root}/frames`]],
+      ["profile.mjs", ["QuickAccess", "10", file, `${root}/p.json`]],
+      ["render.mjs", ["Dialog", "{}"]],
+      ["capture.mjs", []],
+    ]) {
+      const r = await cli(script, args, { CEF_CONNECT_ERROR: "1" });
+      expect(r.code).toBe(1);
+      expect(r.text).toContain("EXC CEF connection failed");
+    }
+    const missing = await cli("key.mjs", ["Nope", "ArrowUp"]);
+    expect(missing.code).toBe(1);
+    expect(missing.text).toContain('no target "Nope"; have: SharedJSContext, QuickAccess_uid9, notificationtoasts');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}, 15000);
+
+test("film records its screencast and fires its trigger through the shared module", async () => {
+  const root = mkdtempSync(path.join(tmpdir(), "wowdeck-film-"));
+  try {
+    const trig = path.join(root, "trigger.js");
+    writeFileSync(trig, "1");
+    const out = path.join(root, "frames");
+    const r = await cli("film.mjs", ["QuickAccess", "50", out, "SharedJSContext", trig]);
+    expect(r.code).toBe(0);
+    expect(r.text).toContain("triggered at");
+    expect(r.text).toContain("frames 0");
+    expect(existsSync(out)).toBe(true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("render refuses an unknown component and still cleans up", async () => {
+  const r = await cli("render.mjs", ["Dialog", "{}"]);
+  expect(r.code).toBe(1);
+  expect(r.text).toContain("no component Dialog");
+  expect(r.text).toContain("cleanup: removed");
+}, 15000);
+
+test("capture records the owner's start and stop presses through the shared module", async () => {
+  const root = mkdtempSync(path.join(tmpdir(), "wowdeck-capture-"));
+  try {
+    const r = await cli("capture.mjs", ["--tail=30", "--max=900", `--out=${root}`], { CEF_BUTTONS: "80:0,300:1" });
+    expect(r.code).toBe(0);
+    expect(r.text).toContain("ready:");
+    expect(r.text).toContain("recording…");
+    expect(r.text).toContain("stopped");
+    const events = readFileSync(path.join(root, "events.jsonl"), "utf8");
+    expect(events).toContain('"k":"start"');
+    expect(events).toContain('"k":"stop"');
+    expect(existsSync(path.join(root, "summary.txt"))).toBe(true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}, 15000);
 
 for (const mode of ["ok", "guard-fail", "reload-fail", "engine-only"]) {
   test(`deployment ${mode}: backs up within plugin data and saves the guard before changing settings`, async () => {
