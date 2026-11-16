@@ -1134,3 +1134,11 @@ These cases have not been run on hardware.
 These rows require the final device run. This change was checked with lint,
 formatting, typechecking, typed-fake tests and a build only. Layout, controller
 navigation and Steam browser return have not been checked on hardware.
+
+Recovery updater TLS verification is pending for both Deck and DroidDeck.
+Before wiring the Recovery screen, probe a valid HTTPS release endpoint and
+an endpoint with an invalid certificate in actual Decky Python on each.
+Confirm certificate rejection and record whether the default trust store or
+Decky's certifi bundle was needed. The read-only attempts on 2026-11-16 did
+not run TLS in either runtime; the phone was unreachable and the Deck used a
+frozen loader without a Python command interface.

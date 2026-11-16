@@ -13,6 +13,7 @@
 UI (src/)                    React, @decky/ui only — no paths, no Node APIs
  ↓ @decky/api callable/emit
 main.py                      thin lifecycle + JSONL bridge
+recovery_updater.py           engine-independent verified recovery staging
  ↓ stdin/stdout JSONL
 wowdeck engine (backend/) standalone Bun-compiled binary
  ↓

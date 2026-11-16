@@ -338,3 +338,16 @@ _Avoid_: "kept files", which also describes the previous version.
 The state of a WoW installation whose unfinished addon operation leaves its
 addon state uncertain. Further addon changes pause until recovery resolves it.
 _Avoid_: "broken installation", which suggests WoW itself cannot run.
+
+**Engine**:
+The Bun backend process started by `main.py`. It owns addon work, settings,
+update checks and normal update staging. The frontend calls its typed RPC.
+
+**Recovery screen**:
+The plugin screen for an engine that cannot start. It can offer a replacement
+build without calling the engine. Its update controls are separate work.
+
+**Recovery updater**:
+The Python module shipped beside `main.py` that downloads a supplied release,
+checks its digest and package, and returns a private staged zip. It works
+without the engine and never writes engine settings.
