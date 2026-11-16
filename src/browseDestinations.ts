@@ -89,8 +89,8 @@ export const searchDestination = createDestination<SearchView>(() => ({
   outcome: { kind: "none", text: "" },
 }));
 
-/** Search for the current query (ignored while one runs, or when it is blank). */
-export function runSearch(rpc: Rpc): Promise<void> {
+/** Search an installation for the current query (ignored while one runs, or when it is blank). */
+export function runSearch(installationId: string, rpc: Rpc): Promise<void> {
   const { query, searching } = searchDestination.get();
   const trimmed = query.trim();
   if (!trimmed || searching) {
@@ -98,7 +98,11 @@ export function runSearch(rpc: Rpc): Promise<void> {
   }
   return searchDestination.request(
     () =>
-      withTimeout(rpc("addons.search", { query: trimmed }), SEARCH_TIMEOUT_MS, "search timed out"),
+      withTimeout(
+        rpc("addons.search", { installationId, query: trimmed }),
+        SEARCH_TIMEOUT_MS,
+        "search timed out",
+      ),
     { searching: true, outcome: { kind: "none", text: "" } },
     ({ results, providerErrors }) => ({
       searching: false,
@@ -170,13 +174,20 @@ export const listDestination = (id: ListDestinationId): Destination<ListView> =>
  * empty, which the engine answers with nothing; Popular's All categories
  * (null) is no category at all.
  */
-function requestPage(rpc: Rpc, id: ListDestinationId, index: number, pageSize: number) {
+function requestPage(
+  installationId: string,
+  rpc: Rpc,
+  id: ListDestinationId,
+  index: number,
+  pageSize: number,
+) {
   if (id === "latest") {
     const { sourceId } = latestDestination.get();
-    return rpc("discover.latest", { providerId: sourceId ?? "", index, pageSize });
+    return rpc("discover.latest", { installationId, providerId: sourceId ?? "", index, pageSize });
   }
   const { sourceId, categoryId } = popularDestination.get();
   return rpc("discover.popular", {
+    installationId,
     providerId: sourceId ?? "",
     index,
     pageSize,
@@ -184,15 +195,15 @@ function requestPage(rpc: Rpc, id: ListDestinationId, index: number, pageSize: n
   });
 }
 
-/** Fetch the next page (ignored while one is loading). */
-export function loadMore(id: ListDestinationId, rpc: Rpc): Promise<void> {
+/** Fetch the next page for an installation (ignored while one is loading). */
+export function loadMore(installationId: string, id: ListDestinationId, rpc: Rpc): Promise<void> {
   const list = LISTS[id];
   const { loading, results: shown } = list.get();
   if (loading) {
     return Promise.resolve();
   }
   return list.request(
-    () => requestPage(rpc, id, shown.length, LOAD_MORE_PAGE_SIZE),
+    () => requestPage(installationId, rpc, id, shown.length, LOAD_MORE_PAGE_SIZE),
     { loading: true, error: null },
     ({ results, totalCount }) => ({
       loading: false,
@@ -278,15 +289,15 @@ export function setUrl(url: string): void {
   urlDestination.patch({ url, resolving: false, resolved: null, error: null });
 }
 
-/** Look up the current address (ignored while a lookup runs, or when it is blank). */
-export function resolveUrl(rpc: Rpc): Promise<void> {
+/** Look up the current address for an installation (ignored while a lookup runs, or when it is blank). */
+export function resolveUrl(installationId: string, rpc: Rpc): Promise<void> {
   const { url, resolving } = urlDestination.get();
   const trimmed = url.trim();
   if (!trimmed || resolving) {
     return Promise.resolve();
   }
   return urlDestination.request(
-    () => rpc("addons.resolveUrlImport", { url: trimmed }),
+    () => rpc("addons.resolveUrlImport", { installationId, url: trimmed }),
     { resolving: true, resolved: null, error: null },
     ({ result, error }) =>
       error

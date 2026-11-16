@@ -83,7 +83,8 @@ import {
 } from "../../api/version";
 import type { PrBuildFollow } from "../plugin/PrBuildFollow";
 import { releaseNotesText } from "../plugin/ReleaseNotesText";
-import { backoffIntervalMs, DAY_MS, HOUR_MS, isDue, SingleFlight } from "./CheckCadence";
+import { backoffIntervalMs, DAY_MS, HOUR_MS, isDue } from "./CheckCadence";
+import { SingleFlight } from "../utils/SingleFlight";
 
 
 /** system.updateCheck's answer: the check's status and the one release on offer. */

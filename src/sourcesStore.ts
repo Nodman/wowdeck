@@ -70,13 +70,17 @@ export async function setSourceEnabled(
 }
 
 /** Ask for a source's categories, once; a failed ask is not kept, so the next one asks again. */
-export async function loadCategories(rpc: Rpc, providerId: string): Promise<void> {
+export async function loadCategories(
+  installationId: string,
+  rpc: Rpc,
+  providerId: string,
+): Promise<void> {
   if (sourcesStore.get().categories[providerId] || asking.has(providerId)) {
     return;
   }
   asking.add(providerId);
   try {
-    const { categories } = await rpc("addons.getCategories", { providerId });
+    const { categories } = await rpc("addons.getCategories", { installationId, providerId });
     sourcesStore.patch({
       categories: { ...sourcesStore.get().categories, [providerId]: categories ?? [] },
     });

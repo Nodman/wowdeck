@@ -44,7 +44,10 @@ mock.module("@decky/ui", () => fakeDeckyUi);
 mock.module("./services/backend", () => ({
   rpc: async () => ({ description: "", changelog: "" }),
 }));
-mock.module("./session", () => ({ addonSession: session }));
+mock.module("./session", () => ({
+  addonSession: session,
+  activeInstallationId: () => session.get().selectedId ?? "",
+}));
 
 const { AddonDetailsModal } = await import("./components/AddonDetailsModal");
 
@@ -71,6 +74,7 @@ function details() {
 
 describe("Details modal follows the shared session", () => {
   test("an install pending elsewhere shows here, and once landed Details offers the installed addon's action", async () => {
+    await session.reloadInstallations();
     await session.reloadAddons();
     const idle = details();
     expect(idle).toContain("X: Install");

@@ -33,10 +33,10 @@ describe("rpcVia", () => {
     const sent: unknown[] = [];
     const rpc = rpcVia(async (method, params) => {
       sent.push([method, params]);
-      return { addons: [] };
+      return { providers: [] };
     });
-    await rpc("addons.list");
-    expect(sent).toEqual([["addons.list", undefined]]);
+    await rpc("providers.list");
+    expect(sent).toEqual([["providers.list", undefined]]);
   });
   test("throws the engine's message and code for an error envelope", async () => {
     const rpc = rpcVia(async () => ({

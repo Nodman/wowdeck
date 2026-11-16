@@ -5,6 +5,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
+/** A stand-in engine binary for `root` that answers `--methods` with `methods`. */
+function fakeEngine(root: string, methods: string[], note = "") {
+  const bin = path.join(root, `backend/out/wowdeck-${process.arch === "arm64" ? "aarch64" : "x86_64"}`);
+  writeFileSync(bin, `#!/bin/sh\n# ${note}\necho '${JSON.stringify(methods)}'\n`, { mode: 0o755 });
+}
+
 async function cli(script: string, args: string[], env: Record<string, string> = {}, input?: string) {
   const proc = Bun.spawn(["node", "--import", `${here}fixtures/cef.mjs`, script.startsWith("/") ? script : `${here}${script}`, ...args], {
     env: { ...process.env, NODE_OPTIONS: `${process.env.NODE_OPTIONS || ""} --import=${here}fixtures/cef.mjs`, ...env }, stdin: input === undefined ? "ignore" : new Blob([input]), stdout: "pipe", stderr: "pipe",
@@ -36,6 +42,28 @@ test("RPC names and engine errors fail the command", async () => {
   const failed = await cli("deck.mjs", ["rpc", "system.getStatus"], { CEF_RPC_ERROR: "1" });
   expect(failed.code).toBe(1);
   expect(failed.text).toContain("TEST: rpc failed");
+});
+
+test("rpc names come from the built engine's own method list", async () => {
+  const root = mkdtempSync(path.join(tmpdir(), "wowdeck-runner-"));
+  try {
+    const scripts = path.join(root, "tools/deck-ui");
+    mkdirSync(scripts, { recursive: true });
+    for (const name of ["deck.mjs", "cdp.mjs", "connection.mjs", "tunnel.mjs", "diagnostics.mjs", "toast.mjs", "active.mjs"]) copyFileSync(path.join(here, name), path.join(scripts, name));
+    const missing = await cli(path.join(scripts, "deck.mjs"), ["rpc", "--list"]);
+    expect(missing.code).toBe(1);
+    expect(missing.text).toContain("make build-backend");
+    mkdirSync(path.join(root, "backend/out"), { recursive: true });
+    fakeEngine(root, ["fixture.only", "system.getStatus"]);
+    const listed = await cli(path.join(scripts, "deck.mjs"), ["rpc", "--list"]);
+    expect(listed.code).toBe(0);
+    expect(listed.text).toContain("fixture.only system.getStatus");
+    const unknown = await cli(path.join(scripts, "deck.mjs"), ["rpc", "addons.list"]);
+    expect(unknown.code).toBe(1);
+    expect(unknown.text).toContain('unknown method "addons.list"');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("an unterminated run is rejected before executing steps", async () => {
@@ -173,13 +201,11 @@ for (const mode of ["ok", "guard-fail", "reload-fail", "engine-only"]) {
     try {
       const scripts = path.join(root, "tools/deck-ui");
       mkdirSync(scripts, { recursive: true });
-      mkdirSync(path.join(root, "backend/src/api"), { recursive: true });
       mkdirSync(path.join(root, "dist"));
       mkdirSync(path.join(root, "backend/out"), { recursive: true });
-      writeFileSync(path.join(root, "backend/out/wowdeck-x86_64"), "fixture engine version changed");
+      fakeEngine(root, ["settings.get", "settings.set", "system.getStatus"], "fixture engine version changed");
       if (mode === "engine-only") writeFileSync(path.join(root, "backend/package.json"), JSON.stringify({ version: "new-fixture" }));
       for (const name of ["deck.mjs", "cdp.mjs", "connection.mjs", "tunnel.mjs", "diagnostics.mjs", "toast.mjs", "active.mjs"]) copyFileSync(path.join(here, name), path.join(scripts, name));
-      copyFileSync(path.join(here, "../../backend/src/api/contracts.ts"), path.join(root, "backend/src/api/contracts.ts"));
       writeFileSync(path.join(root, "dist/index.js"), "fixture frontend");
       writeFileSync(path.join(root, "main.py"), "fixture bridge");
       const r = await cli(path.join(scripts, "deck.mjs"), ["up", "--no-build"], {

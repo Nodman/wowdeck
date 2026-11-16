@@ -200,22 +200,29 @@ export function createAddonSession(deps: AddonSessionDeps): AddonSession {
    * the list's refresh button.
    */
   const readAddons = async (release: readonly string[] = []) => {
+    const installationId = store.get().selectedId;
+    if (!installationId) {
+      // No installation, no addons: nothing to ask the engine.
+      store.patch({ addons: [], busy: idle(release), addonsUnverified: false });
+      return;
+    }
     try {
       const started = ++clock;
-      const list = () => rpc("addons.list");
+      const list = () => rpc("addons.list", { installationId });
       const { addons: read, unverified } = await (release.length ? list() : trackLoad(list));
       const shown = new Map(store.get().addons.map((a) => [a.id, a]));
       const addons = read.map((a) =>
         (appliedAt.get(a.id) ?? 0) > started ? (shown.get(a.id) ?? a) : a,
       );
-      const { selectedId, recoveryRequired } = store.get();
+      const { recoveryRequired } = store.get();
       store.patch({
         addons,
         busy: idle(release),
         addonsUnverified: unverified === true,
-        // The list answers for the active installation: unverified means recovery required there.
-        ...(unverified &&
-          selectedId && { recoveryRequired: { ...recoveryRequired, [selectedId]: true as const } }),
+        // The list answers for the installation it named: unverified means recovery required there.
+        ...(unverified && {
+          recoveryRequired: { ...recoveryRequired, [installationId]: true as const },
+        }),
       });
     } catch (e) {
       store.patch({ busy: idle(release) });
@@ -294,7 +301,7 @@ export function createAddonSession(deps: AddonSessionDeps): AddonSession {
     } else if (change !== "reload" && addons.some((a) => a.id === change.id)) {
       appliedAt.set(change.id, ++clock);
       store.patch({
-        addons: addons.map((a) => (a.id === change.id ? keepListFields(a, change) : a)),
+        addons: addons.map((a) => (a.id === change.id ? change : a)),
         busy: idle(ended),
       });
     } else {
@@ -334,6 +341,8 @@ export function createAddonSession(deps: AddonSessionDeps): AddonSession {
   const shared = createAddonActions({
     ...deps,
     rpc: watchedRpc,
+    // None: the engine refuses the call, and the action says it couldn't.
+    installationId: () => store.get().selectedId ?? "",
     setUpdatingAll: (scope) => store.patch({ updatingAll: scope && { scope, progress: null } }),
     begin,
     settled: settle,
@@ -404,11 +413,12 @@ export function createAddonSession(deps: AddonSessionDeps): AddonSession {
     // new update.
     async refreshFromProviders() {
       // Recovery required: the engine refuses refreshes there; the stored list is what there is.
-      if (recoveryNeededFor(store.get())) {
+      const installationId = store.get().selectedId;
+      if (!installationId || recoveryNeededFor(store.get())) {
         return reloadAddons();
       }
       try {
-        const { addons, failed } = await trackLoad(() => rpc("addons.refresh"));
+        const { addons, failed } = await trackLoad(() => rpc("addons.refresh", { installationId }));
         store.patch({ addons });
         if (failed > 0) {
           toast(`Couldn't check ${plural(failed, "addon")} for updates`, "Try again later");
@@ -525,24 +535,6 @@ function mentionsRecovery(result: unknown): boolean {
     return recoveryRequired === true || (Array.isArray(followUps) && followUps.some(required));
   };
   return [operation, ...(Array.isArray(operations) ? operations : [])].some(required);
-}
-
-/**
- * An addon the engine returned for one action, in place of its row. Only the
- * list reads the TOC on disk and who needs whom; the single addon carries
- * those empty, so the row keeps its own.
- */
-function keepListFields(row: Addon, returned: Addon): Addon {
-  return {
-    ...returned,
-    interfaceVersion: row.interfaceVersion,
-    dependencies: row.dependencies,
-    optionalDependencies: row.optionalDependencies,
-    missingDependencies: row.missingDependencies,
-    neededBy: row.neededBy,
-    leavesUnneeded: row.leavesUnneeded,
-    gameVersion: row.gameVersion,
-  };
 }
 
 /** A catalogue result's identity: provider and external addon ID. */

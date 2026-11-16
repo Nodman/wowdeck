@@ -93,6 +93,7 @@ const addons = [
 ];
 const sessionState = { addons, selectedId: null, recoveryRequired: {}, installations: [] };
 mock.module("./session", () => ({
+  activeInstallationId: () => "",
   addonSession: {
     get: () => sessionState,
     subscribe: () => () => {},

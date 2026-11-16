@@ -143,7 +143,7 @@ function AddonPortabilityModal({
     setExportMeta(null);
     try {
       const result = await api.rpc("addons.export", {
-        installationId: installationId || undefined,
+        installationId,
       });
       setExportPayload(result.payload);
       setExportMeta({
@@ -262,7 +262,7 @@ function AddonPortabilityModal({
     try {
       const { summary: result, error } = await api.rpc("addons.previewImport", {
         importString: trimmed,
-        installationId: installationId || undefined,
+        installationId,
       });
       if (requestId !== previewRequestRef.current) {
         return;
@@ -314,7 +314,7 @@ function AddonPortabilityModal({
     try {
       const { operations, error } = await api.rpc("addons.importAddonList", {
         importString: trimmed,
-        installationId: installationId || undefined,
+        installationId,
       });
       if (error) {
         pluginToast("Couldn't import", error.message);

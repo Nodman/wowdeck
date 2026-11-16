@@ -12,6 +12,12 @@ import { AddonRecords, type AddonCommitEvidence, type AddonRecordsState, normali
 import { realStageFs, type FsStage, type StageFs } from "../fs/StageFs";
 import { UNREADABLE_STATE_MARKER } from "../addons/TransactionMarker";
 
+/** One settings write: the settings before and after it. */
+export interface SettingsChange {
+  before: PluginSettings;
+  after: PluginSettings;
+}
+
 export interface EngineState {
   installations: WowInstallation[];
   addons: WowAddon[];
@@ -123,11 +129,41 @@ export class StateStore {
     return this.load().settings;
   }
 
+  /**
+   * Called after every settings write, whoever made it, with the settings
+   * before and after. A listener may return a promise: saveSettings waits
+   * for it, updateSettings does not.
+   */
+  readonly settingsListeners = new Set<(change: SettingsChange) => void | Promise<void>>();
+
+  /** Write settings; subscribers react in the background. */
   updateSettings(patch: Partial<PluginSettings>): PluginSettings {
+    const { settings, reactions } = this.#writeSettings(patch);
+    reactions.catch(() => console.error(JSON.stringify({ component: "settings", reason: "subscriber-failed" })));
+    return settings;
+  }
+
+  /** Write settings, then wait until every subscriber has reacted (settings.set). */
+  async saveSettings(patch: Partial<PluginSettings>): Promise<PluginSettings> {
+    const { settings, reactions } = this.#writeSettings(patch);
+    await reactions;
+    return settings;
+  }
+
+  #writeSettings(patch: Partial<PluginSettings>): { settings: PluginSettings; reactions: Promise<unknown> } {
     const state = this.load();
-    state.settings = { ...state.settings, ...patch };
+    const before = state.settings;
+    state.settings = { ...before, ...patch };
     void this.persist();
-    return state.settings;
+    const change = { before, after: state.settings };
+    const reactions = [...this.settingsListeners].map((listener) => {
+      try {
+        return Promise.resolve(listener(change));
+      } catch (err) {
+        return Promise.reject(err);
+      }
+    });
+    return { settings: state.settings, reactions: Promise.all(reactions) };
   }
 
   get installations(): WowInstallation[] {

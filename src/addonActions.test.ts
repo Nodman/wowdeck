@@ -62,6 +62,7 @@ function harness(answers: Record<string, unknown>, autoUpdate = false) {
     toast: (title, body = "") => log.push(body ? `toast ${title} | ${body}` : `toast ${title}`),
     toastError: (title, e) => log.push(`error ${title} | ${e instanceof Error ? e.message : e}`),
     autoUpdateOn: () => autoUpdate,
+    installationId: () => "active",
     setUpdatingAll: (scope) => log.push(`updatingAll ${scope}`),
     begin: (id) => {
       if (id) {
@@ -171,7 +172,7 @@ describe("addon actions: reinstall, channel, pause, ignore, remove", () => {
     expect(h.calls).toEqual([
       ["addons.remove", { addonId: "a1", removeLibraries: false }],
       ["addons.remove", { addonId: "a1", removeLibraries: true }],
-      ["addons.removeUnmanaged", { folderName: "Loose" }],
+      ["addons.removeUnmanaged", { installationId: "i1", folderName: "Loose" }],
     ]);
     expect(h.log.filter((l) => l.startsWith("toast"))).toEqual([
       "toast Removed Details",
@@ -259,7 +260,10 @@ describe("addon actions: use a source (WF-23, WF-12)", () => {
     });
     await h.actions.useSource(loose, source);
     expect(h.calls).toEqual([
-      ["addons.adopt", { folderName: "Loose", providerId: "Curse", externalId: "61284" }],
+      [
+        "addons.adopt",
+        { installationId: "i1", folderName: "Loose", providerId: "Curse", externalId: "61284" },
+      ],
     ]);
     expect(h.log).toEqual([
       "busy unmanaged:Loose true",
@@ -392,6 +396,7 @@ describe("addon actions: update all", () => {
   test("nothing to do, and a rejected call", async () => {
     const none = harness({ "addons.updateAll": { operations: [op("current")] } });
     await none.actions.updateAll("installation");
+    expect(none.calls).toEqual([["addons.updateAll", { installationId: "active" }]]);
     expect(none.log).toContain("toast All addons are up to date");
     const bad = harness({ "addons.updateAll": new Error("offline") });
     await bad.actions.updateAll("installation");
@@ -407,7 +412,10 @@ describe("addon actions: install", () => {
     const h = harness({ "addons.install": { addon, operation: op("installed") } });
     await h.actions.install(result, "beta");
     expect(h.calls).toEqual([
-      ["addons.install", { providerId: "Curse", externalId: "61284", channel: "beta" }],
+      [
+        "addons.install",
+        { installationId: "active", providerId: "Curse", externalId: "61284", channel: "beta" },
+      ],
     ]);
     expect(h.log).toEqual(["toast Installed Details | Beta release", "reload"]);
   });
@@ -442,6 +450,10 @@ describe("addon actions: install", () => {
       "addons.lookup": { addons: [{ name: "LibA" }, { name: "LibB" }] },
     });
     await named.actions.install(result);
+    expect(named.calls[1]).toEqual([
+      "addons.lookup",
+      { installationId: "active", providerId: "Curse", externalIds: ["1", "2"] },
+    ]);
     expect(named.log).toContain(
       "toast Details may not work | It needs LibA, LibB, which couldn't be installed. Install it from Get Addons.",
     );

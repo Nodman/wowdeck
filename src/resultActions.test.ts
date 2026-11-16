@@ -24,6 +24,7 @@ const installedRow = {
  * Results and Details both build X and Menu from this, against the session's
  * current state, so one install shows pending in both. Install answers only
  * when the test says; the list holds the addon from the second read on.
+ * Installation i1 is active once the test reads the installations.
  */
 function views() {
   const log: string[] = [];
@@ -37,6 +38,12 @@ function views() {
           (r) =>
             (answerInstall = () => r({ addon: installedRow, operation: { status: "installed" } })),
         );
+      }
+      if (method === "installations.list") {
+        return { installations: [{ id: "i1", selected: true }] };
+      }
+      if (method !== "addons.list") {
+        return {};
       }
       return { addons: reads++ ? [installedRow] : [] };
     }) as unknown as AddonSessionDeps["rpc"],
@@ -61,6 +68,7 @@ function views() {
 describe("Get Addons result actions from the shared session", () => {
   test("an install from a channel menu shows pending in every view", async () => {
     const { session, current, picks, log } = views();
+    await session.reloadInstallations();
     await session.reloadAddons();
     const results = current();
     expect(results).toMatchObject({ pending: false, installLabel: "Install" });
@@ -75,6 +83,7 @@ describe("Get Addons result actions from the shared session", () => {
 
   test("after the install, Details' X follows the refreshed state, not the props it opened with", async () => {
     const { session, current, answerInstall, log } = views();
+    await session.reloadInstallations();
     await session.reloadAddons();
     const install = current().onInstall();
     answerInstall();
@@ -91,6 +100,7 @@ describe("Get Addons result actions from the shared session", () => {
 
   test("X and a channel pick from before an installation switch send nothing during it", async () => {
     const { session, current, picks, log } = views();
+    await session.reloadInstallations();
     await session.reloadAddons();
     const stale = current();
     stale.channelMenu!();
@@ -104,6 +114,7 @@ describe("Get Addons result actions from the shared session", () => {
 
   test("a new install is unavailable while an installation switch is underway", async () => {
     const { session, current } = views();
+    await session.reloadInstallations();
     await session.reloadAddons();
     const switching = session.selectInstallation("i2");
     expect(current().installLabel).toBeNull();
@@ -116,6 +127,7 @@ describe("Get Addons result actions from the shared session", () => {
 
   test("an installed addon keeps its reinstall during the switch", async () => {
     const { session, current, answerInstall } = views();
+    await session.reloadInstallations();
     await session.reloadAddons();
     const install = current().onInstall();
     answerInstall();

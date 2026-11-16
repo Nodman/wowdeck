@@ -53,7 +53,7 @@ import {
   rememberedFocus,
   restoreFocus,
 } from "../focusMemory";
-import { addonSession } from "../session";
+import { activeInstallationId, addonSession } from "../session";
 import { InstallationSelect } from "./InstallationSelect";
 import { ListTab, ManualInstallTab, SearchTab, type SourceControls } from "./browseTabs";
 import { CapabilityGate } from "./ZeroCapabilityScreen";
@@ -235,7 +235,7 @@ export function GetAddonsTab({
   // asked: with every source off there is no list to narrow.
   useEffect(() => {
     if (popularSource && validDiscoverSources(providers).some((p) => p.id === popularSource)) {
-      void loadCategories(api.rpc, popularSource);
+      void loadCategories(activeInstallationId(), api.rpc, popularSource);
     }
   }, [popularSource, providers]);
 

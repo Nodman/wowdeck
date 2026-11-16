@@ -7,8 +7,8 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import type { HandlerDeps } from "../src/api/handlers/deps";
-import { register } from "../src/api/handlers/system";
+import { subset } from "./helpers/subset";
+import { systemHandlers } from "../src/api/handlers/system";
 import { JsonlServer } from "../src/bridge/jsonl";
 import { NetworkError } from "../src/wow/net/network";
 import { PrBuildList } from "../src/wow/plugin/PrBuildList";
@@ -178,7 +178,7 @@ describe("system.listPrBuilds over the RPC", () => {
     const rpc = new JsonlServer((line) => {
       response = JSON.parse(line);
     });
-    register(rpc, { prBuilds: makeList(answer).list } as unknown as HandlerDeps);
+    rpc.handle(systemHandlers(subset({ prBuilds: makeList(answer).list })));
     await rpc.handleLine(JSON.stringify({ id: 1, method: "system.listPrBuilds" }));
     return response;
   }

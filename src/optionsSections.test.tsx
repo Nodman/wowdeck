@@ -19,6 +19,7 @@ mock.module("@decky/ui", () => ({
 }));
 const sessionState = { installations: [] };
 mock.module("./session", () => ({
+  activeInstallationId: () => "",
   addonSession: { get: () => sessionState, subscribe: () => () => {} },
 }));
 mock.module("./services/backend", () => ({

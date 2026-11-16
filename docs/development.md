@@ -349,13 +349,16 @@ A new client folder goes into the script's `CLIENTS` list too; the test
 
 1. Declare it in `backend/src/api/contracts.ts` (`MethodMap`: `params` and
    `result`; an engine-pushed event goes in `EventMap`).
-2. Handle it with `server.on("area.method", …)` in the matching
-   `backend/src/api/handlers/<area>.ts`; a new service goes into
-   `HandlerDeps` (`handlers/deps.ts`) and is built in `main.ts`. The
+2. Add its handler to the table the matching
+   `backend/src/api/handlers/<area>.ts` returns (`"area.method": async
+   (params) => …`); a new service goes into
+   `HandlerDeps` (`handlers/deps.ts`) and the area's own deps type
+   (`AddonsDeps`, `SystemDeps`, …), and is built in `engine.ts`. The
    handler only forwards: the engine module returns the contract type
    itself, and a method that never throws for an expected failure answers
-   through `settle()` (`bridge/jsonl.ts`). The integration test "every
-   declared method has a handler" fails until it is.
+   through `settle()` (`bridge/jsonl.ts`). `make typecheck` fails until
+   the method has a handler: `handlers/index.ts` types the merged table
+   as complete. The engine binary's `--methods` prints the table's keys.
 3. Call it from the UI with `rpc("area.method", params)`
    (`src/services/backend.ts`), typed from `MethodMap`. `main.py` forwards
    every method unchanged; it needs no edit.
@@ -385,7 +388,7 @@ until the contract and `main.py` agree.
    provenance header and an entry in `docs/wowup-provenance.md`.
 2. Add its id to `AddonProviderType` (`wow/types.ts`) if new, and to
    `PROVIDER_ID` and the display names in `backend/src/api/providers.ts`.
-3. Register it in `backend/src/main.ts` (`registry.register(…)`).
+3. Register it in `backend/src/engine.ts` (`registry.register(…)`).
 4. Give it a scenario in `backend/tests/providers/scenarios.ts`: its
    capabilities, a search text or link, a known id and a missing one. Record
    its cassette with `make record-provider-fixtures PROVIDERS=<name>`; the

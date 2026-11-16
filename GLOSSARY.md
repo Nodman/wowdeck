@@ -302,6 +302,12 @@ _Avoid_: migrate, transfer, cross-flavor restore
 A folder containing at least one `.toc` file directly inside it. Its TOC's
 presence alone does not establish compatibility with a particular WoW client.
 
+**Release archive**:
+One addon release's archive file, downloaded or copied in from a picked
+file, held from then until it is disposed of. The preview and the install
+read where it installs from it.
+_Avoid_: "download", which is only one way to get it.
+
 ## Addon recovery
 
 **Previous version**:

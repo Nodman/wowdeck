@@ -35,7 +35,7 @@ import {
 import { registerDirectScroll, scrollTweenTarget } from "../valveScroll";
 import { nextGalleryIndex } from "../gallery";
 import { holdBrowseSessionForModal } from "../browseSessionState";
-import { addonSession } from "../session";
+import { activeInstallationId, addonSession } from "../session";
 import type { AddonSessionState } from "../addonSession";
 import type { ResultActions } from "../resultActions";
 import { SafeMarkdown } from "./SafeMarkdown";
@@ -284,7 +284,11 @@ export function AddonDetailsModal({
     error: cngError,
   } = useLazyResource(() =>
     api
-      .rpc("addons.getChangelog", { providerId: result.providerId, externalId: result.externalId })
+      .rpc("addons.getChangelog", {
+        installationId: activeInstallationId(),
+        providerId: result.providerId,
+        externalId: result.externalId,
+      })
       .then((r) => r.changelog),
   );
 
@@ -306,6 +310,7 @@ export function AddonDetailsModal({
       (() =>
         api
           .rpc("addons.lookup", {
+            installationId: activeInstallationId(),
             providerId: providerRels.providerId,
             externalIds: providerRels.items.map((i) => i.externalId),
           })

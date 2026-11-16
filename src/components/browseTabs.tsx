@@ -35,7 +35,7 @@ import { toastError } from "../toast";
 import { Warning, WarningLine } from "./Warning";
 import { browseArchive } from "../archivePicker";
 import { hasMore } from "../loadMore";
-import { addonSession } from "../session";
+import { activeInstallationId, addonSession } from "../session";
 import { resultActions, type ResultActionsDeps } from "../resultActions";
 import { resultKey, recoveryNeededFor, type AddonSessionState } from "../addonSession";
 import { STEAM, descriptionStyle } from "../steamTheme";
@@ -169,7 +169,7 @@ export function SearchTab({
   // the results it would cover show.
   const doSearch = () => {
     hideOnScreenKeyboard();
-    return runSearch(api.rpc);
+    return runSearch(activeInstallationId(), api.rpc);
   };
   const helper = searchHelperText(sources.providers, installationLabel(installation));
 
@@ -257,7 +257,7 @@ export function ListTab({
     }
   }, [loading]);
 
-  const fetchMore = () => void loadMore(destination, api.rpc);
+  const fetchMore = () => void loadMore(activeInstallationId(), destination, api.rpc);
 
   const onLoadMore = () => {
     if (loading) {
@@ -331,7 +331,7 @@ export function ManualInstallTab({ sources }: { sources: SourceControls }) {
   );
   const resolve = () => {
     hideOnScreenKeyboard();
-    return resolveUrl(api.rpc);
+    return resolveUrl(activeInstallationId(), api.rpc);
   };
   const view = browseFocusView("url");
 
@@ -420,7 +420,11 @@ function FileImportSection({
   const pickFailed = file.phase === "error" && !file.preview;
 
   const browse = () => {
-    void browseArchive(openFilePicker, (path) => api.rpc("addons.inspectArchive", { path }), view);
+    void browseArchive(
+      openFilePicker,
+      (path) => api.rpc("addons.inspectArchive", { installationId: activeInstallationId(), path }),
+      view,
+    );
   };
 
   const install = () => {
@@ -429,7 +433,7 @@ function FileImportSection({
       return;
     }
     void installArchive(
-      (pair) => api.rpc("addons.install", pair),
+      (pair) => api.rpc("addons.install", { installationId: activeInstallationId(), ...pair }),
       () => requireInstallation(onFindInstallations),
     );
   };
@@ -458,7 +462,8 @@ function FileImportSection({
     const recheck = (remove: () => Promise<void>, name: string) =>
       void removeConflicting(
         remove,
-        (path) => api.rpc("addons.inspectArchive", { path }),
+        (path) =>
+          api.rpc("addons.inspectArchive", { installationId: activeInstallationId(), path }),
         (key) => requestFocus(view, key),
       ).catch((e) => toastError(`Couldn't remove ${name}`, e));
     const find = () => addonSession.get().addons.find((a) => a.id === addonId);

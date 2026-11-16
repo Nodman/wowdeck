@@ -102,20 +102,23 @@ describe("a source's categories", () => {
     const { rpc, calls } = fakeRpc({
       "addons.getCategories": () => ({ categories: [{ id: "1019", name: "Combat" }] }),
     });
-    await loadCategories(rpc, "Curse");
-    await loadCategories(rpc, "Curse");
-    expect(calls).toEqual([{ method: "addons.getCategories", params: { providerId: "Curse" } }]);
+    await loadCategories("i1", rpc, "Curse");
+    await loadCategories("i1", rpc, "Curse");
+    expect(calls).toEqual([
+      { method: "addons.getCategories", params: { installationId: "i1", providerId: "Curse" } },
+    ]);
     expect(sourcesStore.get().categories).toEqual({ Curse: [{ id: "1019", name: "Combat" }] });
   });
 
   test("a second ask while the first is on its way asks nothing", async () => {
     const { rpc, calls } = fakeRpc({ "addons.getCategories": () => ({ categories: [] }) });
-    await Promise.all([loadCategories(rpc, "Curse"), loadCategories(rpc, "Curse")]);
+    await Promise.all([loadCategories("i1", rpc, "Curse"), loadCategories("i1", rpc, "Curse")]);
     expect(calls).toHaveLength(1);
   });
 
   test("a source without categories is kept as none", async () => {
     await loadCategories(
+      "i1",
       fakeRpc({ "addons.getCategories": () => ({ categories: null }) }).rpc,
       "WowUpHub",
     );
@@ -123,10 +126,10 @@ describe("a source's categories", () => {
   });
 
   test("a failed ask is not kept, so the next one asks again", async () => {
-    await loadCategories(fakeRpc({}).rpc, "Curse");
+    await loadCategories("i1", fakeRpc({}).rpc, "Curse");
     expect(sourcesStore.get().categories).toEqual({});
     const { rpc, calls } = fakeRpc({ "addons.getCategories": () => ({ categories: [] }) });
-    await loadCategories(rpc, "Curse");
+    await loadCategories("i1", rpc, "Curse");
     expect(calls).toHaveLength(1);
   });
 });

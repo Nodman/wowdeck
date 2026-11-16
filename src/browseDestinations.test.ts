@@ -56,20 +56,29 @@ describe("the lists' requests", () => {
   test("Latest asks its source for the next page", async () => {
     latestDestination.patch({ sourceId: "WowUpHub", results: [result("1")], loaded: true });
     const { rpc, calls } = fakeRpc(page("2"));
-    await loadMore("latest", rpc);
+    await loadMore("i1", "latest", rpc);
     expect(calls).toEqual([
-      { method: "discover.latest", params: { providerId: "WowUpHub", index: 1, pageSize: 10 } },
+      {
+        method: "discover.latest",
+        params: { installationId: "i1", providerId: "WowUpHub", index: 1, pageSize: 10 },
+      },
     ]);
   });
 
   test("Popular in All categories names no category", async () => {
     popularDestination.patch({ sourceId: "Curse" });
     const { rpc, calls } = fakeRpc(page("1"));
-    await loadMore("popular", rpc);
+    await loadMore("i1", "popular", rpc);
     expect(calls).toEqual([
       {
         method: "discover.popular",
-        params: { providerId: "Curse", index: 0, pageSize: 10, categoryId: undefined },
+        params: {
+          installationId: "i1",
+          providerId: "Curse",
+          index: 0,
+          pageSize: 10,
+          categoryId: undefined,
+        },
       },
     ]);
   });
@@ -78,7 +87,7 @@ describe("the lists' requests", () => {
     popularDestination.patch({ sourceId: "Curse" });
     setCategory("1019");
     const { rpc, calls } = fakeRpc(page("1"));
-    await loadMore("popular", rpc);
+    await loadMore("i1", "popular", rpc);
     expect(calls[0].params).toMatchObject({ providerId: "Curse", categoryId: "1019" });
   });
 
@@ -86,8 +95,9 @@ describe("the lists' requests", () => {
     popularDestination.patch({ sourceId: "Curse", categoryId: "1019" });
     setSource("popular", "WowUpHub");
     const { rpc, calls } = fakeRpc(page("1"));
-    await loadMore("popular", rpc);
+    await loadMore("i1", "popular", rpc);
     expect(calls[0].params).toEqual({
+      installationId: "i1",
       providerId: "WowUpHub",
       index: 0,
       pageSize: 10,
@@ -97,18 +107,18 @@ describe("the lists' requests", () => {
 
   test("before the sources have picked one, the source id is empty", async () => {
     const { rpc, calls } = fakeRpc(page());
-    await loadMore("latest", rpc);
-    await loadMore("popular", rpc);
+    await loadMore("i1", "latest", rpc);
+    await loadMore("i1", "popular", rpc);
     expect(calls.map((c) => c.params)).toEqual([
-      { providerId: "", index: 0, pageSize: 10 },
-      { providerId: "", index: 0, pageSize: 10, categoryId: undefined },
+      { installationId: "i1", providerId: "", index: 0, pageSize: 10 },
+      { installationId: "i1", providerId: "", index: 0, pageSize: 10, categoryId: undefined },
     ]);
   });
 
   test("a list follows the sources' default pick", async () => {
     applySources([provider("WowUpHub", { discovers: true })]);
     const { rpc, calls } = fakeRpc(page("1"));
-    await loadMore("latest", rpc);
+    await loadMore("i1", "latest", rpc);
     expect(calls[0].params).toMatchObject({ providerId: "WowUpHub" });
   });
 });
@@ -117,8 +127,8 @@ describe("lists", () => {
   test("a page appends, and a second press while loading asks nothing", async () => {
     const answer = pending<{ results: SearchResult[]; totalCount: number }>();
     const { rpc, calls } = fakeRpc(() => answer.promise);
-    const first = loadMore("latest", rpc);
-    void loadMore("latest", rpc); // e.g. the panel remounting mid-load
+    const first = loadMore("i1", "latest", rpc);
+    void loadMore("i1", "latest", rpc); // e.g. the panel remounting mid-load
     expect(latestDestination.get().loading).toBe(true);
     answer.resolve({ results: [result("1"), result("2")], totalCount: 20 });
     await first;
@@ -134,7 +144,7 @@ describe("lists", () => {
 
   test("a page for the previous installation is dropped after a reset", async () => {
     const answer = pending<{ results: SearchResult[]; totalCount: number }>();
-    const done = loadMore("latest", fakeRpc(() => answer.promise).rpc);
+    const done = loadMore("i1", "latest", fakeRpc(() => answer.promise).rpc);
     resetDestinations();
     answer.resolve({ results: [result("old")], totalCount: 1 });
     await done;
@@ -143,7 +153,7 @@ describe("lists", () => {
 
   test("a failure keeps what was shown and names the list's source", async () => {
     latestDestination.patch({ sourceId: "WowUpHub", results: [result("1")], loaded: true });
-    await loadMore("latest", fakeRpc(() => Promise.reject(new Error("HTTP 500"))).rpc);
+    await loadMore("i1", "latest", fakeRpc(() => Promise.reject(new Error("HTTP 500"))).rpc);
     expect(latestDestination.get().results).toHaveLength(1);
     expect(latestDestination.get().error).toStartWith("Couldn't load addons. WowUp Hub");
   });
@@ -156,7 +166,7 @@ describe("lists", () => {
       new Error("That WoW installation isn't available. Check Options"),
       { code: "not_found" },
     );
-    await loadMore("latest", fakeRpc(() => Promise.reject(noInstallation)).rpc);
+    await loadMore("i1", "latest", fakeRpc(() => Promise.reject(noInstallation)).rpc);
     expect(latestDestination.get().error).toBe(
       "Couldn't load addons. That WoW installation isn't available. Check Options.",
     );
@@ -293,8 +303,10 @@ describe("search", () => {
       results: [result("61284")],
       providerErrors: [],
     }));
-    await runSearch(rpc);
-    expect(calls).toEqual([{ method: "addons.search", params: { query: "details" } }]);
+    await runSearch("i1", rpc);
+    expect(calls).toEqual([
+      { method: "addons.search", params: { installationId: "i1", query: "details" } },
+    ]);
     expect(searchDestination.get()).toMatchObject({ searching: false, outcome: { kind: "none" } });
     expect(searchDestination.get().results).toHaveLength(1);
   });
@@ -304,18 +316,18 @@ describe("search", () => {
     const refused = Object.assign(new Error("Pick an installation first"), {
       code: "invalid_request",
     });
-    await runSearch(fakeRpc(() => Promise.reject(refused)).rpc);
+    await runSearch("i1", fakeRpc(() => Promise.reject(refused)).rpc);
     expect(searchDestination.get().outcome).toEqual({
       kind: "error",
       text: "Couldn't search. Pick an installation first.",
     });
-    await runSearch(fakeRpc(() => Promise.reject(new Error("TypeError: fetch failed"))).rpc);
+    await runSearch("i1", fakeRpc(() => Promise.reject(new Error("TypeError: fetch failed"))).rpc);
     expect(searchDestination.get().outcome.text).toContain("internet connection");
   });
 
   test("a blank query asks nothing", async () => {
     const { rpc, calls } = fakeRpc(async () => ({ results: [], providerErrors: [] }));
-    await runSearch(rpc);
+    await runSearch("i1", rpc);
     expect(calls).toEqual([]);
   });
 });
@@ -324,8 +336,10 @@ describe("From URL", () => {
   test("the looked-up result is kept (a modal round trip remounts the tab)", async () => {
     setUrl(" owner/repo ");
     const { rpc, calls } = fakeRpc(async () => ({ result: result("gh"), error: null }));
-    await resolveUrl(rpc);
-    expect(calls).toEqual([{ method: "addons.resolveUrlImport", params: { url: "owner/repo" } }]);
+    await resolveUrl("i1", rpc);
+    expect(calls).toEqual([
+      { method: "addons.resolveUrlImport", params: { installationId: "i1", url: "owner/repo" } },
+    ]);
     expect(urlDestination.get()).toMatchObject({ url: " owner/repo ", resolving: false });
     expect(urlDestination.get().resolved?.externalId).toBe("gh");
   });
@@ -333,7 +347,7 @@ describe("From URL", () => {
   test("an answer for an address that has since changed is dropped", async () => {
     setUrl("owner/old");
     const lookup = pending<{ result: SearchResult | null; error: null }>();
-    const done = resolveUrl(fakeRpc(() => lookup.promise).rpc);
+    const done = resolveUrl("i1", fakeRpc(() => lookup.promise).rpc);
     setUrl("owner/new");
     lookup.resolve({ result: result("old"), error: null });
     await done;
@@ -347,6 +361,7 @@ describe("From URL", () => {
   test("an expected failure shows its sentence", async () => {
     setUrl("owner/repo");
     await resolveUrl(
+      "i1",
       fakeRpc(async () => ({ result: null, error: { code: "source_removed", message: "raw" } }))
         .rpc,
     );

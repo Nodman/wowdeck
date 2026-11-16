@@ -40,7 +40,7 @@ function FoldersModal({ addon, closeModal }: { addon: Addon; closeModal?: () => 
 
   // Asked again after every Show: a file manager may have opened or closed.
   const load = () =>
-    api.rpc("addons.folders", { addonId: addon.id }).then(
+    api.rpc("addons.folders", { installationId: addon.installationId, addonId: addon.id }).then(
       (value) => setState({ value, error: null }),
       (e) => setState({ value: null, error: errorText(e) }),
     );
@@ -50,7 +50,10 @@ function FoldersModal({ addon, closeModal }: { addon: Addon; closeModal?: () => 
 
   const show = async () => {
     try {
-      const { shown, steamAppId } = await api.rpc("addons.showFolders", { addonId: addon.id });
+      const { shown, steamAppId } = await api.rpc("addons.showFolders", {
+        installationId: addon.installationId,
+        addonId: addon.id,
+      });
       if (!shown) {
         pluginToast(NO_FILE_MANAGER_HINT.title, NO_FILE_MANAGER_HINT.body);
       } else if (steamAppId !== null) {

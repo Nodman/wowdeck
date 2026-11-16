@@ -50,7 +50,9 @@ function FindSourceModal({ addon, onPick, closeModal }: Props) {
   const { value, loading, error } = useLazyResource(() =>
     api.rpc(
       "addons.findSources",
-      addon.providerId ? { addonId: addon.id } : { folderName: addon.folderName },
+      addon.providerId
+        ? { addonId: addon.id }
+        : { installationId: addon.installationId, folderName: addon.folderName },
     ),
   );
   const outcome = value && searchOutcome(addon.name, value.results.length, value.providerErrors);

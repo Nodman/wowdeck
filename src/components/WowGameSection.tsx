@@ -6,6 +6,7 @@ import { pluginToast, toastError } from "../toast";
 import { createAddonActions } from "../addonActions";
 import { settingsStore } from "../settings";
 import { openPanel } from "../openPanel";
+import { activeInstallationId } from "../session";
 import { STEAM, descriptionStyle } from "../steamTheme";
 import { updateSummaryText } from "../steamLibrary";
 import {
@@ -42,6 +43,7 @@ export function WowGameSection() {
     toast: pluginToast,
     toastError,
     autoUpdateOn: () => settingsStore.get().settings.autoUpdate,
+    installationId: activeInstallationId,
     setUpdatingAll: (scope) => setUpdating(scope !== null),
     begin: () => {},
     // "Updating…" stays until the new counts are in.

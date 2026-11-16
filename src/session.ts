@@ -10,3 +10,12 @@ export const addonSession = createAddonSession({
   toastError,
   autoUpdateOn: () => settingsStore.get().settings.autoUpdate,
 });
+
+/**
+ * The active installation's id, for a call made on its behalf (Get Addons,
+ * Details), read when the call is made. Empty with none: the engine refuses
+ * the call rather than guess one.
+ */
+export function activeInstallationId(): string {
+  return addonSession.get().selectedId ?? "";
+}

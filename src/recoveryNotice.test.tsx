@@ -15,6 +15,7 @@ mock.module("@decky/ui", () => deckyUiStub);
 // The engine bridge and module session are Decky's; these renders never call them.
 mock.module("./services/backend", () => ({ rpc: async () => ({}) }));
 mock.module("./session", () => ({
+  activeInstallationId: () => "",
   addonSession: { subscribe: () => () => {}, get: () => ({}) },
 }));
 
