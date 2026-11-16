@@ -307,3 +307,13 @@ describe("CurseForge's source row", () => {
     expect(doc.activeElement).toBe(keyRow());
   });
 });
+
+test("revoked TSM account offers sign-in without claiming it stays signed in", async () => {
+  auth = builtIn;
+  engineProviders = [{ ...hub, id: "TradeSkillMaster", enabled: false }];
+  await sourcesStore.load();
+  await act(async () => root.render(<Sources />));
+  expect(doc.body.textContent).toContain("Sign in");
+  expect(doc.body.textContent).not.toContain("stays signed in");
+  expect(doc.body.textContent).not.toContain("X signs out");
+});

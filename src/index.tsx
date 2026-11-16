@@ -1,3 +1,4 @@
+import { stopTsmSignIn } from "./tsmSignIn";
 import { onTsmSessionEnded } from "./tsmReads";
 import { tsmSession, tsmActionRequired } from "./tsmSession";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -420,6 +421,7 @@ export default definePlugin(() => {
     content: <Content />,
     icon: <FaBoxOpen />,
     onDismount() {
+      stopTsmSignIn();
       unpatchGamePage();
       stopHomeBadge();
       stopQamVisibilityWatch();

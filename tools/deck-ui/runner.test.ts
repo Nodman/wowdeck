@@ -21,8 +21,26 @@ async function cli(script: string, args: string[], env: Record<string, string> =
   return { code, text: out + err };
 }
 
+/** Run method-dependent commands against a self-contained repository fixture. */
+async function engineCli(args: string[], env: Record<string, string> = {}) {
+  const root = mkdtempSync(path.join(tmpdir(), "wowdeck-runner-engine-"));
+  try {
+    const scripts = path.join(root, "tools/deck-ui");
+    mkdirSync(scripts, { recursive: true });
+    for (const name of ["deck.mjs", "cdp.mjs", "connection.mjs", "tunnel.mjs", "diagnostics.mjs", "toast.mjs", "active.mjs", "logs.py"]) copyFileSync(path.join(here, name), path.join(scripts, name));
+    mkdirSync(path.join(root, "backend/out"), { recursive: true });
+    fakeEngine(root, ["system.getStatus", "installations.list", "settings.get"]);
+    mkdirSync(path.join(root, "src/services"), { recursive: true });
+    writeFileSync(path.join(root, "src/services/backend.ts"), 'rpc("system.getStatus"); bridge("save_text_file");');
+    writeFileSync(path.join(root, "main.py"), "    async def save_text_file(self): pass\n");
+    return await cli(path.join(scripts, "deck.mjs"), args, env);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
 test("a batch preserves quoted JSON and separators, and projects RPC arrays", async () => {
-  const r = await cli("deck.mjs", ["run", `# comment\nrpc system.getStatus '{"message":"a;b"}' --pick=params.message; rpc system.getStatus --pick=rows[].name`]);
+  const r = await engineCli(["run", `# comment\nrpc system.getStatus '{"message":"a;b"}' --pick=params.message; rpc system.getStatus --pick=rows[].name`]);
   expect(r.code).toBe(0);
   expect(r.text).toContain("a;b");
   expect(r.text).toContain('["one","two"]');
@@ -36,10 +54,10 @@ test("failed expectations stop the batch before the next action", async () => {
 });
 
 test("RPC names and engine errors fail the command", async () => {
-  const unknown = await cli("deck.mjs", ["rpc", "system.typo"]);
+  const unknown = await engineCli(["rpc", "system.typo"]);
   expect(unknown.code).toBe(1);
   expect(unknown.text).toContain("unknown method");
-  const failed = await cli("deck.mjs", ["rpc", "system.getStatus"], { CEF_RPC_ERROR: "1" });
+  const failed = await engineCli(["rpc", "system.getStatus"], { CEF_RPC_ERROR: "1" });
   expect(failed.code).toBe(1);
   expect(failed.text).toContain("TEST: rpc failed");
 });
@@ -296,9 +314,10 @@ for (const phase of ["start-stall", "press-stall", "close-stall"]) {
 }
 
 test("local method consistency check needs no device", async () => {
-  const result = await cli("deck.mjs", ["methods-check"]);
+  const result = await engineCli(["methods-check"]);
   expect(result.code).toBe(0);
   expect(result.text).toContain('"missingBridge":[]');
+  expect(result.text).toContain('"unknownRpc":[]');
   expect(result.text).toContain('"save_text_file"');
 });
 
@@ -308,19 +327,19 @@ test("logs support checkpoints, bounded matching waits and scrubbed diagnostic s
     mkdirSync(path.join(root, "homebrew/logs/wowdeck"), { recursive: true });
     writeFileSync(path.join(root, "homebrew/logs/wowdeck/fixture.log"), 'error: old failure api_key="PRIVATE"\n');
     const env = { CEF_LOG_HOME: root, DECK: "fixture", CEF_DIAG: "1" };
-    const read = await cli("deck.mjs", ["log-wait", "failure", "--t=1"], env);
+    const read = await engineCli(["log-wait", "failure", "--t=1"], env);
     expect(read.code).toBe(0);
     expect(read.text).not.toContain("PRIVATE");
-    const since = await cli("deck.mjs", ["run", "log-mark; log 10 --since=mark; log-wait failure --since=mark --t=1; eval 42"], env);
+    const since = await engineCli(["run", "log-mark; log 10 --since=mark; log-wait failure --since=mark --t=1; eval 42"], env);
     expect(since.code).toBe(1);
     expect(since.text).toContain("→ []");
     expect(since.text).toContain("no matching log line before timeout");
     expect(since.text).not.toContain("→ 42");
-    const diag = await cli("deck.mjs", ["diagnose"], env);
+    const diag = await engineCli(["diagnose"], env);
     expect(diag.code).toBe(0);
     expect(diag.text).toContain('"active":[{"id":"retail","gameType":"retail"}]');
     expect(diag.text).not.toContain("PRIVATE");
-    const failed = await cli("deck.mjs", ["diagnose"], { ...env, CEF_DIAG: "", CEF_RPC_ERROR: "1" });
+    const failed = await engineCli(["diagnose"], { ...env, CEF_DIAG: "", CEF_RPC_ERROR: "1" });
     expect(failed.code).toBe(0);
     expect(failed.text).toContain('"engine":{"error":');
     expect(failed.text).toContain('"ui":');
@@ -677,7 +696,7 @@ test("frontend reload restores a control whose full label exceeds the compact fo
 });
 
 test("missing RPC projection reports the field without a TypeError", async () => {
-  const r = await cli("deck.mjs", ["rpc", "system.getStatus", "--pick=absent"]);
+  const r = await engineCli(["rpc", "system.getStatus", "--pick=absent"]);
   expect(r.code).toBe(1);
   expect(r.text).toContain("RPC pick path absent is missing");
   expect(r.text).not.toContain("TypeError");

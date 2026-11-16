@@ -5,6 +5,7 @@ import { systemClock, type Clock } from "./clock";
 import { engine } from "./engineLink";
 import { createKeyedResource } from "./keyedResource";
 import type {
+  MethodMap,
   TradeSkillMasterAccount,
   TradeSkillMasterAuthStatus,
   TradeSkillMasterDestination,
@@ -63,7 +64,19 @@ export function createTsmModule(deps: {
     },
     clock: deps.clock,
   });
+  const addons = createKeyedResource<MethodMap["addons.list"]["result"]>({
+    read: (installationId) => deps.rpc("addons.list", { installationId }),
+    errorText: (e) => {
+      backendErrorMessage(e);
+      return "Couldn't read installed addons";
+    },
+    clock: deps.clock,
+  });
   return {
+    addons,
+    addonsChanged() {
+      addons.invalidate();
+    },
     status,
     account,
     destination,
@@ -101,6 +114,9 @@ export const {
   cleanupPreview: tsmCleanupPreview,
 } = tsmModule;
 engine.events.on("tradeskillmaster.changed", tsmModule.changed);
+engine.events.on("addons.changed", tsmModule.addonsChanged);
+export const useTsmAddons = (installationId: string) =>
+  useResource(tsmModule.addons, installationId);
 
 export const useTsmStatus = () => useResource(tsmStatus, ACCOUNT_KEY);
 export const putTsmAccount = (data: TradeSkillMasterAccount) => account.put(ACCOUNT_KEY, data);
@@ -122,7 +138,13 @@ export const forgetTsmCleanupPreview = (installationId: string) =>
 
 /** Drop everything read so far, so the next view starts empty (tests). */
 export function resetTsmReads(): void {
-  for (const resource of [tsmStatus, account, tsmDestination, tsmCleanupPreview]) {
+  for (const resource of [
+    tsmStatus,
+    account,
+    tsmDestination,
+    tsmCleanupPreview,
+    tsmModule.addons,
+  ]) {
     resource.retainOnly([]);
   }
 }

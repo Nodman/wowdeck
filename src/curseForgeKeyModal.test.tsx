@@ -124,6 +124,7 @@ const ownKey: CurseForgeAuthStatus = {
 };
 
 let root: Root;
+let hidden = 0;
 let closed = 0;
 let changed = 0;
 
@@ -137,6 +138,17 @@ beforeEach(async () => {
   pendingStatus = null;
   toasts.length = 0;
   opened.length = 0;
+  hidden = 0;
+  Object.assign(dom.window, {
+    SteamUIStore: {
+      ActiveWindowInstance: {
+        VirtualKeyboardManager: {
+          IsShowingVirtualKeyboard: { Value: true },
+          SetVirtualKeyboardHidden: () => hidden++,
+        },
+      },
+    },
+  });
   closed = 0;
   changed = 0;
   testResult = { ok: true };
@@ -273,6 +285,7 @@ describe("the CurseForge key modal", () => {
     expect(toasts).toContain("CurseForge key saved and verified");
     expect(changed).toBe(1);
     expect(closed).toBe(1);
+    expect(hidden).toBe(1);
   });
 
   test("a key CurseForge rejects is not saved, nothing turns on and the modal stays", async () => {
@@ -294,6 +307,7 @@ describe("the CurseForge key modal", () => {
     expect(methods()).toContain("providers.setEnabled");
     expect(toasts).toContain("CurseForge key saved");
     expect(closed).toBe(1);
+    expect(hidden).toBe(1);
   });
 
   test("Clear key removes the saved key, shows the new status and stays open", async () => {
@@ -324,4 +338,18 @@ describe("the CurseForge key modal", () => {
     await press("Get a CurseForge API key");
     expect(opened).toEqual(["https://console.curseforge.com/#/api-keys"]);
   });
+});
+
+test("closing key entry dismisses the keyboard before unmount", async () => {
+  await show(rejected);
+  await act(async () =>
+    [...doc.querySelectorAll("button")].find((b) => b.textContent === "Close")!.click(),
+  );
+  expect(closed).toBe(1);
+  expect(hidden).toBe(1);
+});
+test("unmounting key entry dismisses the keyboard", async () => {
+  await show(rejected);
+  await act(async () => root.render(null));
+  expect(hidden).toBe(1);
 });

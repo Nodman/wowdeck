@@ -74,7 +74,7 @@ async function harness(answers: Answers, active: string | null = "i1") {
     log.length = 0;
     fake.answers = answers;
   }
-  return { session, log };
+  return { session, log, fake };
 }
 
 describe("addon session: installations", () => {
@@ -1401,4 +1401,43 @@ describe("addon session: installation switching against catalogue installs", () 
     await switching;
     expect(session.get().selectedId).toBe("i2");
   });
+});
+
+test("external install holds switching until its final list lands", async () => {
+  const { session, fake } = await harness({});
+  const install = session.installElsewhere("i1", async () => null);
+  await settle();
+  expect(installationSwitchBlocked(session.get())).toBe("Wait for addon installs to finish.");
+  await fake.next("addons.list").resolve({ addons: [addon({ id: "new" })] });
+  await install;
+  expect(installationSwitchBlocked(session.get())).toBeNull();
+});
+
+test("a list from the previous selection cannot replace the selected installation", async () => {
+  const { session, fake } = await harness({});
+  const old = session.reloadAddons();
+  const oldRead = fake.next("addons.list");
+  fake.answers["installations.list"] = { installations: [installation("i2", true)] };
+  await session.reloadInstallations();
+  const current = session.reloadAddons();
+  await fake.pending("addons.list")[1]!.resolve({ addons: [addon({ id: "current" })] });
+  await current;
+  await oldRead.resolve({ addons: [addon({ id: "old" })] });
+  await old;
+  expect(session.get().addons.map((a) => a.id)).toEqual(["current"]);
+});
+
+test("a newly discovered recovery refusal reloads recovery without an error toast", async () => {
+  const { session, log } = await harness({
+    "addons.refresh": engineFailure("recovery_required"),
+    "addons.list": { addons: [addon()], unverified: true },
+    "installations.recoveryStatus": {
+      stateFile: { status: "readable" },
+      installations: [{ installationId: "i1", status: "recoveryRequired" }],
+    },
+  });
+  expect(await session.rescanInstallation("i1")).toBe("recovery");
+  expect(recoveryNeededFor(session.get())?.id).toBe("i1");
+  expect(session.get().addonsUnverified).toBe(true);
+  expect(log.some((line) => line.startsWith("error "))).toBe(false);
 });

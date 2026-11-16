@@ -81,9 +81,7 @@ export function SourcesSection({
               openCurseForgeKeyModal(curseForgeAuth, onCurseForgeKeyChanged);
             };
             // Off keeps the TradeSkillMaster account; X forgets it.
-            const tsmAccount =
-              p.id === PROVIDER_ID.TradeSkillMaster &&
-              (!!tsm?.account || tsm?.state === "signedOut");
+            const tsmAccount = p.id === PROVIDER_ID.TradeSkillMaster && !!tsm?.account;
             return (
               <SettingsRow
                 key={p.id}

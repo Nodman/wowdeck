@@ -746,3 +746,49 @@ test("pending removal stays visible without auction data and belongs only to its
     dom.window.close();
   }
 });
+
+test("Manage shows a failed account refresh beside retained follows and can retry", async () => {
+  const dom = new JSDOM('<div id="root"></div>');
+  Object.assign(globalThis, {
+    window: dom.window,
+    document: dom.window.document,
+    IS_REACT_ACT_ENVIRONMENT: true,
+  });
+  const root = createRoot(document.getElementById("root")!);
+  const answer = fake.answers["tradeskillmaster.account"];
+  followed = true;
+  holdAccount = undefined;
+  const click = async (text: string) =>
+    act(async () => {
+      const button = [...document.querySelectorAll("button")].find((b) =>
+        b.textContent?.includes(text),
+      );
+      expect(button).toBeDefined();
+      button!.click();
+    });
+  try {
+    await act(async () => root.render(<TsmAddon installationId="empty" />));
+    fake.answers["tradeskillmaster.account"] = new Error("offline");
+    await act(async () => {
+      [...document.querySelectorAll("button")]
+        .find((b) => b.textContent?.includes("Manage"))!
+        .click();
+      root.unmount(); // Steam destroys the QAM opener when the modal opens.
+    });
+    await act(async () => fake.emit({ event: "tradeskillmaster.changed", params: {} }));
+    expect(document.body.textContent).toContain("Couldn't load followed realms");
+    expect(document.body.textContent).toContain("Remote realm");
+    fake.answers["tradeskillmaster.account"] = answer;
+    await click("Retry");
+    expect(document.body.textContent).not.toContain("Couldn't load followed realms");
+    expect(document.body.textContent).toContain("Remote realm");
+  } finally {
+    fake.answers["tradeskillmaster.account"] = answer;
+    await act(async () => {
+      modalRoot?.unmount();
+      modalRoot = undefined;
+      root.unmount();
+    });
+    dom.window.close();
+  }
+});

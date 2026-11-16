@@ -1,3 +1,4 @@
+import { hideOnScreenKeyboard } from "../../steamDom/virtualKeyboard";
 import { RowChevron, RowGlyph } from "../RowGlyph";
 import { useEffect, useState } from "react";
 import {
@@ -57,7 +58,11 @@ function builtInNote(auth: CurseForgeAuthStatus): string {
  * first, then the key and its actions. A saved key turns CurseForge on.
  */
 export function CurseForgeKeyModal({ auth: initialAuth, onChanged, closeModal }: Props) {
-  const close = () => closeModal?.();
+  const close = () => {
+    hideOnScreenKeyboard();
+    closeModal?.();
+  };
+  useEffect(() => hideOnScreenKeyboard, []);
   const { data: read, refresh: reloadAuth } = useCurseForgeAuth();
   const auth = read ?? initialAuth;
   useEffect(() => forgetCurseForgeAuth, []);

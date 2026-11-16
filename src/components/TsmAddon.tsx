@@ -18,9 +18,9 @@ import {
   putTsmDestination,
   useTsmCleanupPreview,
   useTsmDestination,
+  useTsmAddons,
 } from "../tsmReads";
 import type { TradeSkillMasterAccount } from "../../backend/src/api/contracts";
-import type { Addon } from "../types";
 import { tsmAddonState } from "../tsmAddonState";
 import { browseFocusView, holdBrowseSessionForModal } from "../browseSessionState";
 import { realmLabel } from "../tsmRealm";
@@ -107,27 +107,14 @@ export function TsmAddon({ installationId }: { installationId: string }) {
   const [followBusy, setFollowBusy] = useState(false);
   const [followError, setFollowError] = useState<string>();
   const state = tsmAddonState(installationId);
-  const { addon, loaded, busy, error } = useSyncExternalStore(state.subscribe, state.get);
-  const setAddon = (addon: Addon | undefined) => state.patch({ addon });
-  const setLoaded = (loaded: boolean) => state.patch({ loaded });
+  const { busy, error } = useSyncExternalStore(state.subscribe, state.get);
+  const { data: installed, error: addonError, refresh: loadAddons } = useTsmAddons(installationId);
+  const addon = installed?.addons.find((a) =>
+    ["TradeSkillMaster", "TradeSkillMaster_AppHelper"].includes(a.folderName),
+  );
+  const loaded = installed !== null && !installed.unverified;
   const setBusy = (busy: boolean) => state.patch({ busy });
   const setError = (error: string | undefined) => state.patch({ error });
-  const loadAddons = async () => {
-    const result = await engine.rpc("addons.list", { installationId });
-    setAddon(
-      result.addons.find((a) =>
-        ["TradeSkillMaster", "TradeSkillMaster_AppHelper"].includes(a.folderName),
-      ),
-    );
-    setLoaded(!result.unverified);
-  };
-  const addonChanges = useEngineChange("addons.changed");
-  useEffect(() => {
-    void loadAddons().catch((error) => {
-      backendErrorMessage(error);
-      setError("Couldn't read installed addons");
-    });
-  }, [installationId, addonChanges]);
   const remove = async (
     cleanupFollows = false,
     cleanupPreview?: TradeSkillMasterAccount["follows"],
@@ -360,6 +347,11 @@ export function TsmAddon({ installationId }: { installationId: string }) {
       )}
       {actions}
       {status}
+      {addonError && (
+        <PanelSectionRow>
+          <Field label={addonError} />
+        </PanelSectionRow>
+      )}
       {error && (
         <PanelSectionRow>
           <Field label={error} />

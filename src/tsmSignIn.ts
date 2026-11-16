@@ -1,3 +1,4 @@
+import { hideOnScreenKeyboard } from "./steamDom/virtualKeyboard";
 import { tsmStatus } from "./tsmReads";
 import type { KeyedResource } from "./keyedResource";
 import type { TradeSkillMasterAuthStatus } from "../backend/src/api/contracts";
@@ -9,6 +10,14 @@ export interface SignInBrowser {
   close(): void;
 }
 let watching: (() => void) | undefined;
+
+/** Release the browser watcher when the plugin unloads, not when Options unmounts. */
+export function stopTsmSignIn(): void {
+  if (!watching) return;
+  watching();
+  watching = undefined;
+  hideOnScreenKeyboard();
+}
 
 /**
  * Opens the authorize page in Steam's browser and, once the engine reports
@@ -36,6 +45,7 @@ export async function startTsmSignIn(
     if (!state || state === "signingIn") return;
     stop();
     watching = undefined;
+    hideOnScreenKeyboard();
     if (state === "signedIn") browser.close();
   });
   watching = stop;

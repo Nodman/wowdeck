@@ -1127,7 +1127,7 @@ These cases have not been run on hardware.
 | Action | Expected |
 | --- | --- |
 | Start sign-in in Options, let the browser close the QAM, finish sign-in and return | The browser closes, the source is on, and Options, its nav dot and the destination agree about sign-in. |
-| Revoke the session elsewhere while viewing the destination, then visit Options | Both show signed out and offer sign-in. One session-ended notification appears. |
+| Revoke the session elsewhere while viewing the destination, then visit Options | Both show signed out and offer sign-in. Sources never says the account stays signed in or offers Sign out after credentials are cleared. One session-ended notification appears. |
 | Keep Manage followed realms open while auction data changes | Manage and the destination both show the current followed realms. |
 | Remove TradeSkillMaster, close and reopen the QAM while it runs | Working stays visible. Installation switching waits, and a recovery-required answer appears in My Addons. |
 
@@ -1142,3 +1142,48 @@ Confirm certificate rejection and record whether the default trust store or
 Decky's certifi bundle was needed. The read-only attempts on 2026-11-16 did
 not run TLS in either runtime; the phone was unreachable and the Deck used a
 frozen loader without a Python command interface.
+
+
+## Spec 229 review regressions
+
+Automated session tests hold engine responses through the typed fake. They
+check that external installs block switching until the final list arrives,
+that a previous installation's list cannot replace the current list, and
+that a newly discovered recovery refusal shows recovery without an error
+notification. The TradeSkillMaster module test checks installation keys and
+addon-change refreshes. The Manage Follows component test checks a failed
+refresh beside retained follows and a successful retry after QAM teardown.
+
+On the Deck and DroidDeck, check that installation switching waits for a
+file or TradeSkillMaster install to finish. In Manage Follows, interrupt the
+connection, reopen the modal, and check that the old follows remain beside
+the failure message. Restore the connection and choose Retry. Check that
+closing the modal returns focus to Manage.
+
+This code pass reaches automated checks and the build only, tiers T1–T3.
+No visual, controller or hardware verification was performed. The #232 TLS
+acceptance gap still needs evidence from actual Decky Python on both devices.
+
+### TradeSkillMaster delayed sign-in reads
+
+Start a status read and hold its answer. Start sign-in, close Options, then
+finish sign-in. The next shared poll must still run, every view must show
+signed in, and the browser must close once. Delivering the old answer must
+not undo the result. Repeat with Cancel sign-in while a status read is held.
+The cancel request must reach the engine, show signed out, clear loading and
+stop the browser watcher. A late signing-in answer must stay ignored.
+
+Automated coverage uses the typed fake engine and manual clock in
+`src/tsmSignIn.test.ts` and `src/tsmModule.test.ts`. Real browser authentication
+still needs the owner's credentials.
+
+### Sign-in and key-entry keyboard dismissal
+
+With Steam's keyboard open, complete or cancel TradeSkillMaster sign-in.
+The keyboard closes, and completed sign-in returns to Options. Closing
+Options to open the browser must keep the shared sign-in poll running.
+Save a valid CurseForge key, dismiss key entry with Close or B, and close
+the view externally. Each exit closes the keyboard. A rejected key keeps
+entry open for correction. Deterministic tests cover terminal sign-in
+states, key save, explicit close and unmount. Human keyboard verification
+on the Deck remains required.

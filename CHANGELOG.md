@@ -8,6 +8,14 @@ What's new in each version of WoWDeck Addon Manager. The format follows
 
 ### Fixed
 
+- Sources no longer says a revoked TradeSkillMaster account stays signed in.
+
+- The on-screen keyboard closes when TradeSkillMaster sign-in finishes or is cancelled, and when CurseForge key entry closes.
+
+- TradeSkillMaster sign-in keeps checking after a delayed status read, and cancellation clears the waiting state.
+
+- Switching WoW installations after an addon install keeps the correct addon list.
+- TradeSkillMaster shows followed-realm refresh failures and lets you retry.
 - Rescanning an installation that needs recovery shows the recovery steps instead of an error.
 
 ## [1.2.1] - 2026-11-15

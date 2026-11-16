@@ -39,7 +39,7 @@ function ManageFollows({
   initial: TradeSkillMasterAccount;
   closeModal: () => void;
 }) {
-  const { data } = useTsmAccount();
+  const { data, error: refreshError, loading, refresh } = useTsmAccount();
   const account = data ?? initial;
   const [selected, setSelected] = useState<TradeSkillMasterAccount["follows"][number]>();
   const [busy, setBusy] = useState(false);
@@ -62,6 +62,15 @@ function ManageFollows({
         <Focusable key={selected ? "confirmation" : "follows"}>
           {/* Steam's settings: a count is body text, the follows are rows. */}
           <DialogBodyText>{allowanceText(account)}</DialogBodyText>
+          {loading && <DialogBodyText>Loading followed realms…</DialogBodyText>}
+          {refreshError && (
+            <>
+              <DialogBodyText style={{ color: STEAM.danger }}>{refreshError}</DialogBodyText>
+              <ButtonItem disabled={loading} onClick={() => void refresh()}>
+                Retry
+              </ButtonItem>
+            </>
+          )}
           {error && <DialogBodyText style={{ color: STEAM.danger }}>{error}</DialogBodyText>}
           {selected ? (
             <Field

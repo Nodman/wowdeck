@@ -64,7 +64,7 @@ interface Entry<T> {
   snapshot: ResourceSnapshot<T>;
   /** Id of the newest request; answers carrying another id are stale. */
   latest: number;
-  inFlight: number;
+  inFlight: Set<number>;
   /** Explicit requests still running; `loading` is true while any is. */
   explicit: Set<number>;
   /** Invalidated with no read since: a read still in flight answers too old. */
@@ -83,7 +83,7 @@ export function createKeyedResource<T>(options: KeyedResourceOptions<T>): KeyedR
       entry = {
         snapshot: EMPTY,
         latest: 0,
-        inFlight: 0,
+        inFlight: new Set(),
         explicit: new Set(),
         stale: false,
         listeners: new Set(),
@@ -109,7 +109,7 @@ export function createKeyedResource<T>(options: KeyedResourceOptions<T>): KeyedR
     const id = nextRequest++;
     entry.latest = id;
     entry.stale = false;
-    entry.inFlight++;
+    entry.inFlight.add(id);
     if (explicit) {
       entry.explicit.add(id);
       update(entry, { loading: true }); // the error stays until a read succeeds
@@ -127,7 +127,7 @@ export function createKeyedResource<T>(options: KeyedResourceOptions<T>): KeyedR
         update(entry, { error: options.errorText(e) });
       }
     } finally {
-      entry.inFlight--;
+      entry.inFlight.delete(id);
       // Whoever superseded this request, it no longer holds `loading` up.
       if (entry.explicit.delete(id)) {
         update(entry, { loading: entry.explicit.size > 0 });
@@ -136,7 +136,7 @@ export function createKeyedResource<T>(options: KeyedResourceOptions<T>): KeyedR
   };
 
   /** No read is out, or the ones out started before an invalidation. */
-  const needsRead = (entry: Entry<T>) => entry.inFlight === 0 || entry.stale;
+  const needsRead = (entry: Entry<T>) => !entry.inFlight.has(entry.latest) || entry.stale;
 
   const poll = (key: string) => {
     if (needsRead(entryFor(key))) {
@@ -204,7 +204,10 @@ export function createKeyedResource<T>(options: KeyedResourceOptions<T>): KeyedR
       const entry = entryFor(key);
       entry.latest = nextRequest++;
       entry.stale = false;
-      update(entry, { data, error: null });
+      // A write supersedes reads, including their loading state. Their eventual
+      // completion must neither block polling nor keep the action looking busy.
+      entry.explicit.clear();
+      update(entry, { data, error: null, loading: false });
     },
     forget,
     retainOnly(keys) {

@@ -265,6 +265,7 @@ export function createAddonSession(deps: AddonSessionDeps): AddonSession {
       const started = ++clock;
       const list = () => rpc("addons.list", { installationId });
       const { addons: read, unverified } = await (release.length ? list() : trackLoad(list));
+      if (store.get().selectedId !== installationId) return;
       const shown = new Map(store.get().addons.map((a) => [a.id, a]));
       const addons = read.map((a) =>
         (appliedAt.get(a.id) ?? 0) > started ? (shown.get(a.id) ?? a) : a,
@@ -280,6 +281,7 @@ export function createAddonSession(deps: AddonSessionDeps): AddonSession {
         }),
       });
     } catch (e) {
+      if (store.get().selectedId !== installationId) return;
       store.patch({ busy: idle(release) });
       // The last list stays on screen; the toast says it may be stale.
       toastError("Couldn't load addons", e);
@@ -463,6 +465,11 @@ export function createAddonSession(deps: AddonSessionDeps): AddonSession {
         toast(`Couldn't check ${plural(failed, "addon")} for updates`, "Try again later");
       }
     } catch (e) {
+      if ((e as { code?: unknown } | null)?.code === "recovery_required") {
+        await reloadRecovery();
+        if (installationId === store.get().selectedId) await readAddons();
+        return "recovery";
+      }
       toastError("Couldn't check for updates", e);
     }
     return "refreshed";
@@ -558,12 +565,12 @@ export function createAddonSession(deps: AddonSessionDeps): AddonSession {
         }
         throw e;
       } finally {
-        store.patch({ installingElsewhere: store.get().installingElsewhere - 1 });
         // The shown list is read again once the install has settled,
         // whether its own addons.changed event landed mid-install or not.
         if (installationId === store.get().selectedId) {
           await readAddons();
         }
+        store.patch({ installingElsewhere: store.get().installingElsewhere - 1 });
       }
     },
     async findWow() {

@@ -18,12 +18,15 @@ install does not record a staged version in engine settings.
 The download requires HTTPS, including redirects, with certificate and host
 verification enabled. The default system trust store is used when populated;
 if empty, the module loads Decky's bundled certifi store. It never disables
-verification. This choice is provisional until probes run in actual Decky
-Python on both supported devices. On 2026-11-16 the Deck became reachable
-after Wake-on-LAN, but inspection found a frozen PluginLoader executable,
-not a Python CLI. The phone's bounded adb connection failed with "No route
-to host". Neither establishes TLS verification. Both device criteria remain
-pending; a system Python probe would not establish Decky Python behaviour.
+verification. On 2026-11-16, probes in the actual frozen Decky Python
+3.14.8 runtime on both the Steam Deck and DroidDeck returned HTTP 200 from
+GitHub and rejected a self-signed certificate with
+`SSLCertVerificationError`. Both default stores contained 120 CAs, with
+hostname checking enabled and certificate verification required. The probes
+used the recovery updater's TLS context. The original plugin files were
+restored afterward. The certifi fallback was not needed on either device.
+Device evidence is recorded in
+[the hardware report](../hardware/2026-11-16-arch-review-229/README.md).
 
 Blocking work runs in a thread with a ten-second socket timeout, a
 120-second deadline checked between chunks, a 256 MiB download limit and a
