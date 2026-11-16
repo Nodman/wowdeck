@@ -1,4 +1,4 @@
-import { expect, mock, test, setSystemTime } from "bun:test";
+import { expect, mock, test, setSystemTime, beforeEach } from "bun:test";
 import type { ReactElement } from "react";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
@@ -11,6 +11,16 @@ import type {
   TradeSkillMasterDestination,
 } from "../backend/src/api/contracts";
 import type { Addon } from "./types";
+
+// The addon session TsmAddon now writes through pulls in the plugin toasts,
+// which import Decky's API: not installed outside the Deck.
+mock.module("@decky/api", () => ({
+  toaster: { toast: () => {} },
+  openFilePicker: async () => {
+    throw new Error("cancel");
+  },
+  FileSelectionType: { FILE: 0, FOLDER: 1 },
+}));
 
 let updated: number | null = null;
 let installed = true;
@@ -245,6 +255,9 @@ mock.module("@decky/ui", () => ({
 }));
 const { resetFocusMemory } = await import("./focusMemory");
 const { TsmAddon } = await import("./components/TsmAddon");
+const { resetTsmReads } = await import("./tsmReads");
+
+beforeEach(resetTsmReads);
 
 test("destination shows account allowance, waiting data and live freshness for the selected installation", async () => {
   setSystemTime(new Date("2026-11-10T12:00:00Z"));
@@ -561,6 +574,7 @@ for (const dismissal of ["B", "Done"]) {
           [...document.querySelectorAll("button")].find((b) => b.textContent === "Done")!.click();
       });
       expect(qamOpens).toBe(1);
+      resetTsmReads(); // the remount's account read is a first load
       holdAccount = new Promise<void>((resolve) => {
         finish = resolve;
       });

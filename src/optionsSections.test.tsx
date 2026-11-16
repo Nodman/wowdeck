@@ -5,6 +5,7 @@ import { JSDOM } from "jsdom";
 import { deckyUiStub } from "./deckyUiStub";
 import { connectEngine } from "./engineLink";
 import { createFakeEngine } from "./testSupport/fakeEngine";
+import type { InstallationsSession } from "./components/settings/InstallationsSection";
 
 mock.module("@decky/api", () => ({
   FileSelectionType: { FILE: 0, FOLDER: 1 },
@@ -24,6 +25,10 @@ mock.module("./session", () => ({
 // The engine never answers: Options must still show every section.
 connectEngine(createFakeEngine());
 const { SettingsView } = await import("./components/SettingsView");
+const session = {
+  get: () => sessionState,
+  subscribe: () => () => {},
+} as unknown as InstallationsSession;
 
 test("Options has exactly eight sections in the player's navigation order", async () => {
   const dom = new JSDOM('<div id="root"></div>');
@@ -37,12 +42,7 @@ test("Options has exactly eight sections in the player's navigation order", asyn
   try {
     await act(async () =>
       root.render(
-        <SettingsView
-          installations={[]}
-          selectedId={null}
-          onChanged={async () => {}}
-          restoreRows={false}
-        />,
+        <SettingsView installations={[]} selectedId={null} session={session} restoreRows={false} />,
       ),
     );
     expect([...dom.window.document.querySelectorAll("h2")].map((h) => h.textContent)).toEqual([

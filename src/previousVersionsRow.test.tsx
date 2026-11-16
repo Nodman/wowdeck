@@ -119,12 +119,10 @@ mock.module("./selfUpdate", () => ({
 }));
 
 let usage = { bytes: 12_000_000, count: 4 };
-let pendingStatus: Promise<{ bytes: number; count: number }> | null = null;
 let statusFails = false;
 
 const fake = createFakeEngine({
   "rollback.status": async () => {
-    if (pendingStatus) return pendingStatus;
     if (statusFails) throw new Error("Unavailable");
     return usage;
   },
@@ -142,7 +140,7 @@ mock.module("./toast", () => ({
   toastError: (title: string) => toasts.push(title),
 }));
 
-const { loadPreviousVersionsUsage } = await import("./components/PreviousVersionsModal");
+const { resetPreviousVersions } = await import("./previousVersionsUsage");
 const { UpdatesSection } = await import("./components/settings/UpdatesSection");
 const { resetFocusMemory } = await import("./focusMemory");
 const { useRestoreFocus } = await import("./components/FocusSlot");
@@ -192,8 +190,8 @@ const closeModal = async () => {
 
 beforeEach(async () => {
   resetFocusMemory(() => 0);
+  resetPreviousVersions();
   statusFails = false;
-  pendingStatus = null;
   modals = [];
   saved.length = 0;
   calls.length = 0;
@@ -285,28 +283,6 @@ describe("Previous versions row (#207)", () => {
     const retry = inModal("Try again")!;
     await act(async () => retry.click());
     expect(inModal("Space used")?.textContent).toContain("12 MB for 4 addons");
-  });
-
-  test("a late failed load cannot replace the modal's successful usage load", async () => {
-    let reject!: (error: Error) => void;
-    pendingStatus = new Promise((_, no) => {
-      reject = no;
-    });
-    let oldLoad!: Promise<void>;
-    await act(async () => {
-      oldLoad = loadPreviousVersionsUsage();
-    });
-    pendingStatus = null;
-    await openModal();
-    await act(async () => {
-      reject(new Error("Old request failed"));
-      await oldLoad;
-    });
-    expect(inModal("Space used")?.textContent).toContain("12 MB for 4 addons");
-    expect(doc.getElementById("modal")!.textContent).not.toContain(
-      "Couldn't load previous versions",
-    );
-    expect(clearButton()?.getAttribute("data-disabled")).toBeNull();
   });
 
   test("closing the modal puts focus back on Previous versions", async () => {

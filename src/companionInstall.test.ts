@@ -12,13 +12,17 @@ const installed = (status: "installed" | "failed", error: string | null = null) 
 function harness(hubOn: boolean, install?: Answer<"addons.install">) {
   const fake = createFakeEngine(install ? { "addons.install": install } : {});
   const reloads: string[] = [];
+  const elsewhere: string[] = [];
   const deps = {
     rpc: fake.rpc,
+    installElsewhere: async <T>(installationId: string, call: () => Promise<T>) => {
+      elsewhere.push(installationId);
+      return await call();
+    },
     hubEnabled: () => hubOn,
     reloadDiagnostics: async () => void reloads.push("diagnostics"),
-    reloadAddons: async () => void reloads.push("addons"),
   };
-  return { deps, calls: fake.calls, reloads };
+  return { deps, calls: fake.calls, reloads, elsewhere };
 }
 
 describe("installing WowUp Companion into the active installation", () => {
@@ -27,10 +31,11 @@ describe("installing WowUp Companion into the active installation", () => {
     const result = await installCompanion(h.deps, "retail-1");
     expect(result).toEqual({ status: "hubOff" });
     expect(h.calls).toEqual([]);
+    expect(h.elsewhere).toEqual([]);
     expect(h.reloads).toEqual([]);
   });
 
-  test("with WowUp Hub on, it installs Hub addon 27 into that installation, then reloads", async () => {
+  test("with WowUp Hub on, it installs Hub addon 27 through the session, then reloads", async () => {
     const h = harness(true, installed("installed"));
     const result = await installCompanion(h.deps, "retail-1");
     expect(result.status).toBe("installed");
@@ -40,7 +45,9 @@ describe("installing WowUp Companion into the active installation", () => {
         params: { providerId: "WowUpHub", externalId: "27", installationId: "retail-1" },
       },
     ]);
-    expect(h.reloads.sort()).toEqual(["addons", "diagnostics"]);
+    // The session's entry point owns the install, so it re-reads My Addons.
+    expect(h.elsewhere).toEqual(["retail-1"]);
+    expect(h.reloads).toEqual(["diagnostics"]);
   });
 
   test("a failed install comes back with the engine's error", async () => {

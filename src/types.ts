@@ -27,6 +27,7 @@ export type {
   ImportState,
   ImportSummary,
   Installation,
+  InstallationPreferences,
   InstallationRecoveryDetails,
   RecoveryRetryResult,
   RecoveryVerifyResult,

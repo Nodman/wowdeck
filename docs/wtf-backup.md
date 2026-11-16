@@ -204,7 +204,7 @@ at once; `wtf.progress` (throttled to ≤ 4/s) and `wtf.completed` events report
 includes the running `job` so a reopened UI re-attaches. One job at a time
 (`job_in_progress`); `wtf.cancel` works until a restore starts swapping (`too_late_to_cancel`).
 Contract: `backend/src/api/contracts.ts`. Error codes are stable; the UI maps each to plain text
-(`src/wtfOutcome.ts`). The UI calls them through `rpc` (`src/services/backend.ts`); `main.py` forwards them unchanged.
+(`src/wtfOutcome.ts`). The UI calls them through `engine.rpc` (`src/engineLink.ts`); `main.py` forwards them unchanged.
 
 ## Privacy and safety
 

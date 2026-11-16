@@ -1,5 +1,5 @@
 import { RowChevron, RowGlyph } from "../RowGlyph";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   DialogBody,
   DialogButton,
@@ -20,6 +20,7 @@ import { wowupModalStyleCss } from "../../sharedStyles";
 import { pluginToast, toastError } from "../../toast";
 import { settingsStore } from "../../settings";
 import { sourcesStore } from "../../sourcesStore";
+import { forgetCurseForgeAuth, putCurseForgeAuth, useCurseForgeAuth } from "../../curseForgeAuth";
 import { userKeyStatusLabel } from "../../curseForgeAuthUi";
 import { requestFocus } from "../../focusMemory";
 import { CURSE_KEY_ROW } from "../../optionsJump";
@@ -57,43 +58,18 @@ function builtInNote(auth: CurseForgeAuthStatus): string {
  */
 export function CurseForgeKeyModal({ auth: initialAuth, onChanged, closeModal }: Props) {
   const close = () => closeModal?.();
-  const [auth, setAuth] = useState(initialAuth);
+  const { data: read, refresh: reloadAuth } = useCurseForgeAuth();
+  const auth = read ?? initialAuth;
+  useEffect(() => forgetCurseForgeAuth, []);
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [rechecking, setRechecking] = useState(false);
-
-  const statusRequest = useRef(0);
-
-  // The status may have moved on since the row was drawn.
-  useEffect(() => {
-    const request = ++statusRequest.current;
-    void engine
-      .rpc("curseforge.authStatus")
-      .then((next) => request === statusRequest.current && setAuth(next))
-      .catch(() => {
-        /* Keep the row's status. */
-      });
-    return () => {
-      statusRequest.current++;
-    };
-  }, []);
-
-  const reloadAuth = async () => {
-    const request = ++statusRequest.current;
-    try {
-      const next = await engine.rpc("curseforge.authStatus");
-      if (request === statusRequest.current) setAuth(next);
-    } catch {
-      /* Keep the last status. */
-    }
-  };
 
   const save = async () => {
     const candidate = key.trim();
     if (busy || rechecking || !candidate) {
       return;
     }
-    statusRequest.current++;
     setBusy(true);
     try {
       // Instant feedback before saving; settings.set records the real check.
@@ -129,7 +105,6 @@ export function CurseForgeKeyModal({ auth: initialAuth, onChanged, closeModal }:
     if (busy || rechecking) {
       return;
     }
-    statusRequest.current++;
     setBusy(true);
     try {
       await settingsStore.write({ curseApiKey: null });
@@ -147,11 +122,9 @@ export function CurseForgeKeyModal({ auth: initialAuth, onChanged, closeModal }:
     if (busy || rechecking) {
       return;
     }
-    const request = ++statusRequest.current;
     setRechecking(true);
     try {
-      const next = await engine.rpc("curseforge.recheckBundledKey");
-      if (request === statusRequest.current) setAuth(next);
+      putCurseForgeAuth(await engine.rpc("curseforge.recheckBundledKey"));
       await onChanged();
     } catch (e) {
       toastError("Couldn't try built-in access again", e);

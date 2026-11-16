@@ -359,14 +359,15 @@ A new client folder goes into the script's `CLIENTS` list too; the test
    through `settle()` (`bridge/jsonl.ts`). `make typecheck` fails until
    the method has a handler: `handlers/index.ts` types the merged table
    as complete. The engine binary's `--methods` prints the table's keys.
-3. Call it from the UI with `rpc("area.method", params)`
-   (`src/services/backend.ts`), typed from `MethodMap`. `main.py` forwards
-   every method unchanged; it needs no edit.
+3. Call it from the UI through a store built with `engine.rpc`
+   (`src/engineLink.ts`), typed from `MethodMap`. `main.py` forwards every
+   method unchanged; it needs no edit. Its tests answer it through the typed
+   fake (`createFakeEngine` in `src/testSupport/fakeEngine.ts`).
 
 A method `main.py` answers itself, without the engine, goes in
 `BridgeMethodMap` instead: `args` lists its positional arguments in order,
 and `result` is what it returns. Write it as an `async def` on `Plugin` in
-`main.py` and call it with `bridge("method_name", ...args)`. An event
+`main.py` and call it with `engine.bridge("method_name", ...args)`. An event
 `main.py` emits goes in `BridgeEventMap`. `tools/test_main_bridge.py` fails
 until the contract and `main.py` agree.
 

@@ -1,9 +1,14 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test";
 import type { Addon, Installation, ReleaseChannel, SearchResult } from "./types";
-import { createFakeEngine } from "./testSupport/fakeEngine";
+import { createFakeEngine, settle } from "./testSupport/fakeEngine";
 import { createAddonSession } from "./addonSession";
-import { resultActions, type ResultActionsDeps } from "./resultActions";
+import {
+  installedActions,
+  resultActions,
+  type InstalledActionsDeps,
+  type ResultActionsDeps,
+} from "./resultActions";
 
 const result = {
   providerId: "Curse",
@@ -151,7 +156,7 @@ test("recovery pauses the shared Results and Details actions", async () => {
     {
       ...session.get(),
       selectedId: "blocked",
-      installations: [{ id: "blocked", displayName: "Retail" } as import("./types").Installation],
+      installations: [{ id: "blocked", displayName: "Retail" } as Installation],
       recoveryRequired: { blocked: true },
     },
     result,
@@ -166,4 +171,148 @@ test("recovery pauses the shared Results and Details actions", async () => {
   expect(actions.channelMenu).toBeUndefined();
   await actions.onInstall();
   expect(log()).toEqual([]);
+});
+
+/** My Addons' Details, over the same fake session: X updates, Menu follows a channel. */
+function installedViews() {
+  const row = {
+    id: "a1",
+    name: "Details",
+    providerId: "Curse",
+    externalId: "61284",
+    channel: "stable",
+    canChangeChannel: true,
+    updateAvailable: true,
+    availableVersion: "1.1",
+    version: "1.0",
+    ignored: false,
+    newlyUpdated: false,
+  } as Addon;
+  const fake = createFakeEngine({
+    "installations.list": { installations: [{ id: "i1", selected: true } as Installation] },
+    "installations.recoveryStatus": { installations: [], stateFile: { status: "readable" } },
+    "addons.list": () => ({ addons: [row] }),
+    "addons.update": {
+      addon: row,
+      operation: { operationId: "op", addonId: "a1", status: "updated", error: null },
+    },
+    "addons.setChannel": {
+      addon: row,
+      operation: { operationId: "op", addonId: "a1", status: "installed", error: null },
+    },
+  });
+  const session = createAddonSession({
+    rpc: fake.rpc,
+    toast: () => {},
+    toastError: () => {},
+    autoUpdateOn: () => false,
+  });
+  const menus: { choices: { value: string; label: string }[]; current: string }[] = [];
+  const picks: ((c: ReleaseChannel) => void)[] = [];
+  const deps: InstalledActionsDeps = {
+    actions: session.actions,
+    showChannelMenu: (choices, current, pick) => {
+      menus.push({ choices, current });
+      picks.push(pick);
+    },
+  };
+  const current = (a: Addon = row) => installedActions(session.get(), a, deps);
+  /** The engine methods called so far, in order. */
+  const methods = () => fake.calls.map((c) => c.method);
+  return { session, row, calls: methods, menus, picks, current };
+}
+
+describe("an installed addon's Details actions (My Addons)", () => {
+  test("X updates when an update is on offer, and says its work while the row is busy", async () => {
+    const { session, current, calls } = installedViews();
+    await session.reloadInstallations();
+    await session.reloadAddons();
+    expect(current()).toMatchObject({ installLabel: "Update", pending: false, tags: [] });
+    const update = current().onInstall();
+    expect(current()).toMatchObject({ pending: true });
+    await update;
+    expect(calls()).toContain("addons.update");
+  });
+
+  test("no update on offer: X does nothing", async () => {
+    const { session, row, calls } = installedViews();
+    await session.reloadInstallations();
+    await session.reloadAddons();
+    const actions = installedActions(
+      session.get(),
+      { ...row, updateAvailable: false },
+      {
+        actions: session.actions,
+        showChannelMenu: () => {},
+      },
+    );
+    expect(actions.installLabel).toBeNull();
+    await actions.onInstall();
+    expect(calls().filter((m) => m === "addons.update")).toEqual([]);
+  });
+
+  test("the channel menu marks the followed channel and installs only another one", async () => {
+    const { session, current, calls, menus, picks } = installedViews();
+    await session.reloadInstallations();
+    await session.reloadAddons();
+    current().channelMenu!();
+    expect(menus[0]).toEqual({
+      choices: [
+        { value: "stable", label: "Stable" },
+        { value: "beta", label: "Beta" },
+        { value: "alpha", label: "Alpha" },
+      ],
+      current: "stable",
+    });
+    picks[0]!("beta");
+    await settle();
+    expect(calls()).toContain("addons.setChannel");
+    // The marked channel is already followed: picking it again installs nothing.
+    current().channelMenu!();
+    picks[1]!("stable");
+    await settle();
+    expect(calls().filter((m) => m === "addons.setChannel")).toEqual(["addons.setChannel"]);
+  });
+
+  test("no channel menu when the addon cannot change channel", async () => {
+    const { session, row } = installedViews();
+    await session.reloadInstallations();
+    await session.reloadAddons();
+    const actions = installedActions(
+      session.get(),
+      { ...row, canChangeChannel: false },
+      {
+        actions: session.actions,
+        showChannelMenu: () => {
+          throw new Error("must not open");
+        },
+      },
+    );
+    expect(actions.channelMenu).toBeUndefined();
+  });
+
+  test("recovery required: neither X nor the channel menu", async () => {
+    const { session, row, calls } = installedViews();
+    await session.reloadInstallations();
+    await session.reloadAddons();
+    const actions = installedActions(
+      {
+        ...session.get(),
+        selectedId: "blocked",
+        installations: [{ id: "blocked", displayName: "Retail" } as Installation],
+        recoveryRequired: { blocked: true },
+      },
+      row,
+      {
+        actions: session.actions,
+        showChannelMenu: () => {
+          throw new Error("must not open");
+        },
+      },
+    );
+    expect(actions.installLabel).toBeNull();
+    expect(actions.channelMenu).toBeUndefined();
+    await actions.onInstall();
+    expect(calls().filter((m) => m.startsWith("addons."))).toEqual(["addons.list"]);
+  });
 });

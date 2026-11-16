@@ -17,6 +17,8 @@ export interface ResourceSnapshot<T> {
  * Freshness rules every caller goes through, mounted or not:
  * - newest request wins; an older answer never replaces a newer one;
  * - `forget` drops a key's state, and answers already on their way are ignored;
+ * - `put` records an answer the caller already holds (a write's reply) as the
+ *   newest one, so reads still on their way are ignored;
  * - each key with viewers has one poll loop, however many viewers; the loop
  *   stops when the last viewer leaves, and the next first viewer revalidates;
  * - `invalidate` reads only viewed keys; the rest wait, stale, for a viewer;
@@ -35,6 +37,10 @@ export interface KeyedResource<T> {
    * unviewed key is marked stale and read only once someone views it.
    */
   invalidate(affects?: (key: string) => boolean): void;
+  /** Record `data` as the key's newest answer; reads still on their way are ignored. */
+  put(key: string, data: T): void;
+  /** Drop a key's state. A viewer that is still there starts again empty. */
+  forget(key: string): void;
   /** Drop every key not in `keys` (an installation went away). */
   retainOnly(keys: readonly string[]): void;
 }
@@ -44,7 +50,8 @@ export interface KeyedResourceOptions<T> {
   /** Viewer-facing text for a failed read. */
   errorText(error: unknown): string;
   clock: Clock;
-  pollMs: number;
+  /** How often a viewed key reads again; without it a key reads on first view and on `refresh` or `invalidate` only. */
+  pollMs?: number;
   /** Taken when a read is sent and handed to `onData` with its answer, to order it against other state. */
   stamp?(): number;
   /** Called with each answer that is applied (stale answers are not), with the read's `stamp`. */
@@ -137,6 +144,21 @@ export function createKeyedResource<T>(options: KeyedResourceOptions<T>): KeyedR
     }
   };
 
+  const forget = (key: string) => {
+    const entry = entries.get(key);
+    if (!entry) {
+      return;
+    }
+    entries.delete(key);
+    if (entry.listeners.size > 0) {
+      // Still viewed: start again empty, keeping its viewers and poll loop.
+      const fresh = entryFor(key);
+      fresh.listeners = entry.listeners;
+      fresh.timer = entry.timer;
+      entry.listeners.forEach((l) => l());
+    }
+  };
+
   return {
     get: (key) => (key === null ? EMPTY : (entries.get(key)?.snapshot ?? EMPTY)),
     subscribe(key, listener) {
@@ -146,7 +168,9 @@ export function createKeyedResource<T>(options: KeyedResourceOptions<T>): KeyedR
       const entry = entryFor(key);
       entry.listeners.add(listener);
       if (entry.listeners.size === 1) {
-        entry.timer = options.clock.setInterval(() => poll(key), options.pollMs);
+        if (options.pollMs) {
+          entry.timer = options.clock.setInterval(() => poll(key), options.pollMs);
+        }
         // Returning to a key revalidates it; the first load shows as loading.
         if (needsRead(entry)) {
           void read(key, entry.snapshot.data === null);
@@ -176,18 +200,17 @@ export function createKeyedResource<T>(options: KeyedResourceOptions<T>): KeyedR
         }
       }
     },
+    put(key, data) {
+      const entry = entryFor(key);
+      entry.latest = nextRequest++;
+      entry.stale = false;
+      update(entry, { data, error: null });
+    },
+    forget,
     retainOnly(keys) {
-      for (const [key, entry] of [...entries]) {
-        if (keys.includes(key)) {
-          continue;
-        }
-        entries.delete(key);
-        if (entry.listeners.size > 0) {
-          // Still viewed: start again empty, keeping its viewers and poll loop.
-          const fresh = entryFor(key);
-          fresh.listeners = entry.listeners;
-          fresh.timer = entry.timer;
-          entry.listeners.forEach((l) => l());
+      for (const key of [...entries.keys()]) {
+        if (!keys.includes(key)) {
+          forget(key);
         }
       }
     },

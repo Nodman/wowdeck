@@ -1,9 +1,10 @@
-import { useCallback, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import { engine } from "./engineLink";
 import { pluginToast } from "./toast";
 import { wtfCompletedToast } from "./wtfOutcome";
 import { systemClock } from "./clock";
-import type { KeyedResource, ResourceSnapshot } from "./keyedResource";
+import type { ResourceSnapshot } from "./keyedResource";
+import { useResource } from "./useResource";
 import { addonSession } from "./session";
 import { settingsStore } from "./settings";
 import type { WtfCopySourcesResult, WtfListResult } from "./types";
@@ -39,23 +40,6 @@ addonSession.subscribe(() => {
     wtfLifecycle.retainInstallations(next.map((i) => i.id));
   }
 });
-
-/** One installation's view of a resource: mounting makes the view a viewer. */
-function useResource<T>(
-  resource: KeyedResource<T>,
-  installationId: string | null,
-): ResourceSnapshot<T> & { refresh: () => Promise<void> } {
-  const subscribe = useCallback(
-    (listener: () => void) => resource.subscribe(installationId, listener),
-    [resource, installationId],
-  );
-  const snapshot = useSyncExternalStore(subscribe, () => resource.get(installationId));
-  const refresh = useCallback(
-    () => (installationId ? resource.refresh(installationId) : Promise.resolve()),
-    [resource, installationId],
-  );
-  return { ...snapshot, refresh };
-}
 
 /**
  * One installation's backup list, for a view. Mounting makes the view a

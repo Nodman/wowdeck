@@ -13,7 +13,8 @@ Binding for every coding agent and human working on this repository.
 2. **Engine runs on Bun alone**: no `electron`, no Node-only APIs Bun cannot
    polyfill, no WowUp Electron services.
 3. **Frontend (`src/`) is browser-only**: it talks to the engine through the
-   typed `rpc` (`src/services/backend.ts`) and never touches paths or Node APIs.
+   engine link's typed `rpc` (`src/engineLink.ts`) and never touches paths or
+   Node APIs.
    All filesystem work is backend-side.
 4. **Contracts first**: every API change starts in
    `backend/src/api/contracts.ts`. An engine method goes in `MethodMap`;

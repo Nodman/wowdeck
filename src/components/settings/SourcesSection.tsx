@@ -1,6 +1,6 @@
 import { RowChevron } from "../RowGlyph";
 import { UpdateDot } from "../UpdateDot";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { ButtonItem, Field, Navigation, PanelSection, ToggleField } from "@decky/ui";
 
 import type { CurseForgeAuthStatus, ProviderInfo } from "../../types";
@@ -19,6 +19,7 @@ import { GitHubSourceRow } from "./GitHubSource";
 
 import { startTsmSignIn } from "../../tsmSignIn";
 import { openPanel } from "../../openPanel";
+import { putTsmStatus, useTsmStatus } from "../../tsmReads";
 
 const signInBrowser = {
   open: (url: string) => Navigation.NavigateToExternalWeb(url),
@@ -28,7 +29,6 @@ const signInBrowser = {
     openPanel("settings");
   },
 };
-import type { TradeSkillMasterAuthStatus } from "../../../backend/src/api/contracts";
 
 interface Props {
   /** Null when they could not be loaded (a Try again row). */
@@ -55,32 +55,13 @@ export function SourcesSection({
 }: Props) {
   // The Options jump (optionsJump.ts) marks the rows it navigated for; they
   // blink until the jump is used, focus moves on, or this section leaves.
-  const [tsm, setTsm] = useState<TradeSkillMasterAuthStatus | null>(null);
+  const { data: tsm } = useTsmStatus();
+  // Each answer may have changed which sources are usable.
+  const reloadRef = useRef(reloadProviders);
+  reloadRef.current = reloadProviders;
   useEffect(() => {
-    let live = true;
-    let reading = false;
-    const read = async () => {
-      if (reading) return;
-      reading = true;
-      try {
-        const status = await engine.rpc("tradeskillmaster.status");
-        if (live) {
-          setTsm(status);
-          await reloadProviders();
-        }
-      } catch {
-        /* Engine not ready; retry when Options reopens. */
-      } finally {
-        reading = false;
-      }
-    };
-    void read();
-    const timer = setInterval(() => void read(), 1000);
-    return () => {
-      live = false;
-      if (timer !== undefined) clearInterval(timer);
-    };
-  }, [reloadProviders, tsm?.state]);
+    if (tsm) void reloadRef.current();
+  }, [tsm]);
   const jump = useSyncExternalStore(subscribeSourceJump, sourceJump);
   useEffect(() => clearSourceJump, []);
 
@@ -122,7 +103,7 @@ export function SourcesSection({
                             void engine
                               .rpc("tradeskillmaster.signOut")
                               .then(async (status) => {
-                                setTsm(status);
+                                putTsmStatus(status);
                                 await reloadProviders();
                               })
                               .catch((e) => toastError("Couldn't sign out of TradeSkillMaster", e));
@@ -189,7 +170,7 @@ export function SourcesSection({
                             !tsm?.account
                           ) {
                             await startTsmSignIn(engine.rpc, signInBrowser);
-                            setTsm(await engine.rpc("tradeskillmaster.status"));
+                            putTsmStatus(await engine.rpc("tradeskillmaster.status"));
                           } else {
                             await sourcesStore.setEnabled(p.id, checked);
                           }
@@ -203,7 +184,7 @@ export function SourcesSection({
                         layout="below"
                         onClick={async () => {
                           await startTsmSignIn(engine.rpc, signInBrowser);
-                          setTsm(await engine.rpc("tradeskillmaster.status"));
+                          putTsmStatus(await engine.rpc("tradeskillmaster.status"));
                         }}
                       >
                         Sign in
@@ -213,7 +194,7 @@ export function SourcesSection({
                       <ButtonItem
                         layout="below"
                         onClick={async () => {
-                          setTsm(await engine.rpc("tradeskillmaster.cancel"));
+                          putTsmStatus(await engine.rpc("tradeskillmaster.cancel"));
                           await reloadProviders();
                         }}
                       >

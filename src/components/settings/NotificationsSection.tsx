@@ -4,6 +4,7 @@ import { Field, PanelSection, ToggleField } from "@decky/ui";
 
 import type { Diagnostics, Installation } from "../../types";
 import { engine } from "../../engineLink";
+import { addonSession } from "../../session";
 import { descriptionStyle } from "../../steamTheme";
 import { formatList } from "../../search";
 import { settingsStore } from "../../settings";
@@ -18,13 +19,10 @@ import { SettingsRow, VIEW } from "./common";
 export function NotificationsSection({
   diagnostics,
   installation,
-  onChanged,
 }: {
   diagnostics: Diagnostics | null;
   /** The active installation: the only one offered a WowUp Companion install. */
   installation: Installation | null;
-  /** Reload installations + addons (My Addons lists the companion once installed). */
-  onChanged: () => Promise<void>;
 }) {
   const { settings } = useSyncExternalStore(settingsStore.subscribe, settingsStore.get);
   // A quiet status line, not an alert: the companion-data bridge always runs
@@ -74,11 +72,11 @@ export function NotificationsSection({
             if (offer) {
               offerCompanionInstall(offer, {
                 rpc: engine.rpc,
+                installElsewhere: addonSession.installElsewhere,
                 hubEnabled: () =>
                   sourcesStore.get().providers?.find((p) => p.id === COMPANION_PROVIDER_ID)
                     ?.enabled ?? false,
                 reloadDiagnostics: () => diagnosticsStore.load(),
-                reloadAddons: onChanged,
               });
             }
           }}

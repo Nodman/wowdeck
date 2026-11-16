@@ -266,6 +266,14 @@ and every addon method returns the row of the addon it changed. The engine's
 Addon view (`AddonView.ts`) builds both.
 _Avoid_: "record", which is the stored addon the row is built from.
 
+**Engine link**:
+The frontend's one way to the engine and to `main.py` (`src/engineLink.ts`):
+the typed `rpc` and `bridge`, and one event router. The plugin connects
+Decky's adapter to it once, at plugin load; tests connect the typed fake
+engine. Stores take its `rpc` when they are built and hear its events from
+plugin load on, so a change reaches them while the panel is closed.
+_Avoid_: backend module, `api`, subscribing to `backend_event` in a component.
+
 ## Get Addons rework
 
 **Title bar**:

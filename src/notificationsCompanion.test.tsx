@@ -124,11 +124,7 @@ async function render(retailHasIt: boolean, hubOn = true) {
   await sourcesStore.load();
   await act(async () =>
     root.render(
-      <NotificationsSection
-        diagnostics={diagnostics(retailHasIt)}
-        installation={retail}
-        onChanged={async () => {}}
-      />,
+      <NotificationsSection diagnostics={diagnostics(retailHasIt)} installation={retail} />,
     ),
   );
   return doc.querySelector<HTMLElement>('[aria-label="Updates inside WoW"]')!;

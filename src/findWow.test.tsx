@@ -6,6 +6,7 @@ import { JSDOM } from "jsdom";
 import { deckyUiStub } from "./deckyUiStub";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Addon, FoundInstallation, Installation, SearchResult } from "./types";
+import type { AddonSessionState } from "./addonSession";
 import { connectEngine } from "./engineLink";
 import { createFakeEngine } from "./testSupport/fakeEngine";
 
@@ -20,7 +21,8 @@ type RowActions = {
 type ModalActions = {
   releaseHold?: () => void;
   onOK?: () => void;
-  onInstall?: () => Promise<void>;
+  /** The Details modal's live actions (one mode; resultActions/installedActions build them). */
+  live?: (state: AddonSessionState) => { onInstall: () => Promise<void> };
   strCancelButtonText?: string;
   strOKButtonText?: string;
 };
@@ -157,7 +159,7 @@ test("every browse install action and Manual Install warn without sending an ins
     expect(modal).not.toBeNull();
     expect(requests.methods()).toEqual([]);
     row.onClick!();
-    await modal!.props.onInstall!();
+    await modal!.props.live!(addonSession.get()).onInstall();
     expect(modal!.props.strOKButtonText).toBe("Find WoW installations");
     modal!.props.onOK!();
     expect(rememberedFocus(QAM_VIEW.settings)).toBe("detect");
@@ -236,7 +238,7 @@ const props = {
   detecting: false,
   result: null as string | null,
   onDetect: () => {},
-  onAdded: async () => {},
+  session: { addInstallation: async () => [] },
 };
 
 describe("My Addons Find WoW widget", () => {
@@ -272,22 +274,24 @@ describe("My Addons Find WoW widget", () => {
           { gameType: "classic", displayName: "Classic" },
         ] as FoundInstallation[],
       },
-      "installations.add": { installations: [] },
     });
-    const asked = widgetEngine.calls;
-    let reloads = 0;
+    const adds: unknown[] = [];
     const root = createRoot(document.getElementById("widget-root")!);
     try {
       await act(async () =>
         root.render(
           <FindWowWidget
             {...props}
-            onAdded={async () => {
-              reloads++;
+            session={{
+              addInstallation: async (params) => {
+                adds.push(params);
+                return [];
+              },
             }}
             addFolderDeps={{
               pickFolder: async () => "/games/World of Warcraft",
-              rpc: widgetEngine.rpc,
+              inspect: (path) =>
+                widgetEngine.rpc("installations.inspect", { path }).then((r) => r.found),
               toast: () => {},
             }}
           />,
@@ -297,11 +301,11 @@ describe("My Addons Find WoW widget", () => {
         (b) => b.textContent === "Add WoW folder",
       )!;
       await act(async () => add.click());
-      expect(asked).toEqual([
+      expect(widgetEngine.calls).toEqual([
         { method: "installations.inspect", params: { path: "/games/World of Warcraft" } },
-        { method: "installations.add", params: { path: "/games/World of Warcraft" } },
       ]);
-      expect(reloads).toBe(1);
+      // The add went through the session's entry point, not the engine.
+      expect(adds).toEqual([{ path: "/games/World of Warcraft" }]);
     } finally {
       await act(async () => root.unmount());
       dom.window.close();

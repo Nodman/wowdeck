@@ -74,9 +74,7 @@ const result = {
 function details() {
   const deps = { actions: session.actions, showChannelMenu: () => {} };
   const live = (state: ReturnType<typeof session.get>) => resultActions(state, result, deps);
-  return renderToStaticMarkup(
-    <AddonDetailsModal result={result as never} {...live(session.get())} live={live} />,
-  );
+  return renderToStaticMarkup(<AddonDetailsModal result={result as never} live={live} />);
 }
 
 describe("Details modal follows the shared session", () => {

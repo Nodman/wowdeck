@@ -105,7 +105,6 @@ test("addon list import navigates nested folders and restricts selection to text
       mode: "import",
       installations: [],
       selectedInstallationId: null,
-      onInstalled: () => {},
     });
     await act(async () => root.render(opened!));
     expect(loadFile).toBeDefined();
@@ -188,7 +187,6 @@ test("partial import keeps failure details and cleanup warnings after the list r
       mode: "import",
       installations: [],
       selectedInstallationId: null,
-      onInstalled: () => {},
     });
     await act(async () => root.render(opened!));
     expect(loadFile).toBeDefined();
@@ -271,7 +269,6 @@ test("partial import keeps failure details and cleanup warnings after the list r
       mode: "import",
       installations: [],
       selectedInstallationId: null,
-      onInstalled: () => {},
     });
     await act(async () => root.render(opened!));
     await act(async () => loadFile!());

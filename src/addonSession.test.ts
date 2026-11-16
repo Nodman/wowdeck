@@ -21,6 +21,7 @@ import {
 } from "./addonSession";
 import { searchDestination } from "./browseDestinations";
 import { createFakeEngine, engineFailure, settle, type Answers } from "./testSupport/fakeEngine";
+import type { SessionActionId } from "./addonRow";
 
 const addon = (overrides: Partial<Addon> = {}): Addon =>
   ({
@@ -210,6 +211,169 @@ describe("addon session: installations", () => {
     ]);
     expect(session.get().selectedId).toBe("i1");
     expect(session.get().addons.map((a) => a.id)).toEqual(["a1"]);
+  });
+});
+
+describe("addon session: installation writes", () => {
+  test("updateInstallation sends the changes, reads the installations again and answers with it", async () => {
+    const { session, log } = await harness({
+      "installations.update": { installation: installation("i1", true) },
+      "installations.list": { installations: [installation("i1", true)] },
+      "installations.recoveryStatus": { installations: [], stateFile: { status: "readable" } },
+    });
+    const changed = await session.updateInstallation("i1", { hidden: true });
+    expect(changed.id).toBe("i1");
+    expect(log).toContain('installations.update {"installationId":"i1","hidden":true}');
+    expect(log).toContain("installations.list");
+  });
+
+  test("removeInstallation removes, then reads the installations again", async () => {
+    const { session, log } = await harness({
+      "installations.remove": { installationId: "i1" },
+      "installations.list": { installations: [] },
+      "installations.recoveryStatus": { installations: [], stateFile: { status: "readable" } },
+    });
+    await session.removeInstallation("i1");
+    expect(log).toEqual([
+      'installations.remove {"installationId":"i1"}',
+      "installations.recoveryStatus",
+      "installations.list",
+    ]);
+    expect(session.get().selectedId).toBeNull();
+  });
+
+  test("addInstallation adds, reads both lists again and answers with the folder's installations", async () => {
+    const { session, log } = await harness({
+      "installations.add": { installations: [installation("i2")] },
+      "installations.list": { installations: [installation("i1", true), installation("i2")] },
+      "addons.list": { addons: [addon()] },
+      "installations.recoveryStatus": { installations: [], stateFile: { status: "readable" } },
+    });
+    const added = await session.addInstallation({ path: "/games/wow" });
+    expect(added.map((i) => i.id)).toEqual(["i2"]);
+    expect(log).toContain('installations.add {"path":"/games/wow"}');
+    expect(session.get().installations.map((i) => i.id)).toEqual(["i1", "i2"]);
+    expect(log).toContain('addons.list {"installationId":"i1"}');
+  });
+
+  test("rescanInstallation refreshes that installation and toasts what it couldn't check", async () => {
+    const { session, log } = await harness({
+      "addons.refresh": { addons: [addon({ version: "2" })], updated: 1, failed: 2 },
+    });
+    const outcome = await session.rescanInstallation("i1");
+    expect(outcome).toBe("refreshed");
+    expect(log).toContain('addons.refresh {"installationId":"i1"}');
+    expect(session.get().addons[0]!.version).toBe("2");
+    expect(log).toContain("toast Couldn't check 2 addons for updates | Try again later");
+  });
+
+  test("rescanning a recovery-required installation shows the recovery state, not an error", async () => {
+    const { session, log } = await harness({
+      "installations.list": { installations: [installation("i1", true)] },
+      "installations.recoveryStatus": {
+        installations: [{ installationId: "i1", status: "recoveryRequired" }],
+        stateFile: { status: "readable" },
+      },
+      "addons.list": { addons: [addon()], unverified: true },
+    });
+    await session.reloadAll();
+    expect(recoveryNeededFor(session.get())?.id).toBe("i1");
+    log.length = 0;
+    const outcome = await session.rescanInstallation("i1");
+    expect(outcome).toBe("recovery");
+    // No provider refresh was attempted and no error toasted: the engine
+    // refuses it there; the recovery state is what shows.
+    expect(log.filter((l) => l.startsWith("addons.refresh"))).toEqual([]);
+    expect(log.filter((l) => l.startsWith("error"))).toEqual([]);
+    expect(recoveryNeededFor(session.get())?.id).toBe("i1");
+  });
+
+  test("rescanning another installation refreshes it without replacing the shown list", async () => {
+    const { session, log } = await harness({
+      "installations.list": { installations: [installation("i1", true), installation("i2")] },
+      "addons.list": { addons: [addon()] },
+      "addons.refresh": { addons: [addon({ id: "b1" })], updated: 0, failed: 0 },
+    });
+    await session.reloadAll();
+    log.length = 0;
+    await session.rescanInstallation("i2");
+    expect(log).toContain('addons.refresh {"installationId":"i2"}');
+    expect(session.get().addons.map((a) => a.id)).toEqual(["a1"]);
+  });
+});
+
+describe("addon session: installs started elsewhere", () => {
+  test("holds installation switching while it runs, then reads the list again", async () => {
+    const { session, log } = await harness({
+      "addons.list": { addons: [addon({ id: "new" })] },
+    });
+    let finish!: () => void;
+    const running = new Promise<void>((resolve) => (finish = resolve));
+    let settled = false;
+    const call = session
+      .installElsewhere("i1", () => running)
+      .then(() => {
+        settled = true;
+      });
+    expect(installationSwitchBlocked(session.get())).toBe("Wait for addon installs to finish.");
+    finish();
+    await call;
+    expect(settled).toBe(true);
+    expect(installationSwitchBlocked(session.get())).toBeNull();
+    expect(log).toContain('addons.list {"installationId":"i1"}');
+    expect(session.get().addons.map((a) => a.id)).toEqual(["new"]);
+  });
+
+  test("reads the recovery state again when the install's answer says recovery required", async () => {
+    const { session, log } = await harness({
+      "installations.recoveryStatus": {
+        installations: [{ installationId: "i1", status: "recoveryRequired" }],
+        stateFile: { status: "readable" },
+      },
+      "addons.list": { addons: [] },
+    });
+    const operation = { ...op("failed"), recoveryRequired: true };
+    await session.installElsewhere("i1", () => Promise.resolve({ operation }));
+    expect(log).toContain("installations.recoveryStatus");
+    expect(recoveryNeededFor(session.get())?.id).toBe("i1");
+  });
+
+  test("an install the engine refuses for recovery rethrows and reads the recovery state", async () => {
+    const { session, log } = await harness({
+      "installations.recoveryStatus": { installations: [], stateFile: { status: "readable" } },
+      "addons.list": { addons: [] },
+    });
+    let refused: unknown = null;
+    try {
+      await session.installElsewhere("i1", () => Promise.reject({ code: "recovery_required" }));
+    } catch (e) {
+      refused = e;
+    }
+    expect((refused as { code?: string }).code).toBe("recovery_required");
+    expect(log).toContain("installations.recoveryStatus");
+    expect(installationSwitchBlocked(session.get())).toBeNull();
+  });
+
+  test("a rejected install rethrows, releases the switch and still reads the list", async () => {
+    const { session, log } = await harness({
+      "addons.list": { addons: [] },
+    });
+    const boom = new Error("engine down");
+    await expect(session.installElsewhere("i1", () => Promise.reject(boom))).rejects.toBe(boom);
+    expect(installationSwitchBlocked(session.get())).toBeNull();
+    expect(log.filter((l) => l.startsWith("error"))).toEqual([]);
+    expect(log).toContain('addons.list {"installationId":"i1"}');
+  });
+
+  test("an install into another installation doesn't re-read the shown list", async () => {
+    const { session, log } = await harness({
+      "installations.list": { installations: [installation("i1", true), installation("i2")] },
+      "addons.list": { addons: [addon()] },
+    });
+    await session.reloadAll();
+    log.length = 0;
+    await session.installElsewhere("i2", () => Promise.resolve(null));
+    expect(log).toEqual([]);
   });
 });
 
@@ -470,6 +634,50 @@ describe("addon session: list reads", () => {
   });
 });
 
+describe("addon session: row actions by id", () => {
+  /**
+   * What each UI-free action id must send: the engine call the row's action
+   * stands for. Wiring the dispatch wrong (say "resume auto-update" to the
+   * ignore call) fails here, where the view's old switch passed every test.
+   */
+  const expected: [SessionActionId, string][] = [
+    ["update", 'addons.update {"addonId":"a1"}'],
+    ["reinstall", 'addons.reinstall {"addonId":"a1"}'],
+    ["rollback", 'addons.rollback {"addonId":"a1"}'],
+    ["pauseAuto", 'addons.setAutoUpdatePaused {"addonId":"a1","paused":true}'],
+    ["resumeAuto", 'addons.setAutoUpdatePaused {"addonId":"a1","paused":false}'],
+    ["ignore", 'addons.setIgnored {"addonId":"a1","ignored":true}'],
+    ["unignore", 'addons.setIgnored {"addonId":"a1","ignored":false}'],
+  ];
+
+  /** Waits until no action runs and no list read is under way. */
+  const idle = async (session: ReturnType<typeof createAddonSession>) => {
+    for (let i = 0; i < 50; i++) {
+      const { loads, busy } = session.get();
+      if (loads === 0 && Object.keys(busy).length === 0) {
+        return;
+      }
+      await settle();
+    }
+  };
+
+  for (const [action, call] of expected) {
+    test(`"${action}" sends ${call.slice(0, call.indexOf(" "))}`, async () => {
+      const { session, log } = await harness({
+        "addons.list": { addons: [addon()] },
+        "addons.update": { addon: addon(), operation: op("updated") },
+        "addons.reinstall": { addon: addon(), operation: op("installed") },
+        "addons.rollback": { addon: addon(), operation: op("installed") },
+        "addons.setAutoUpdatePaused": { addon: addon() },
+        "addons.setIgnored": { addon: addon() },
+      });
+      session.run(addon(), action);
+      await idle(session);
+      expect(log[0]).toBe(call);
+    });
+  }
+});
+
 describe("Get Addons results against My Addons' list", () => {
   const ref = { providerId: "Curse", externalId: "61284" };
 
@@ -687,7 +895,9 @@ describe("addon session: recovery required (#107)", () => {
     await session.reloadAll();
     log.length = 0;
     await session.refreshFromProviders();
-    expect(log).toEqual(['addons.list {"installationId":"A"}']);
+    // The stored list, plus the recovery state read again so the notice
+    // is current; no provider call.
+    expect(log).toEqual(['addons.list {"installationId":"A"}', "installations.recoveryStatus"]);
   });
 
   test("a status that can't be read keeps the last one", async () => {

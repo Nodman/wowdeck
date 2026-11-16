@@ -49,14 +49,22 @@ addon engine (installations, scanner, TOC, providers, downloads, installer)
 ```
 
 Protocol: newline-delimited JSON requests/responses plus engine-initiated
-events (see `backend/src/api/contracts.ts`). The frontend calls every engine
-method through one typed `rpc(method, params)` (`src/services/backend.ts`),
-which `main.py` forwards unchanged. `main.py` answers a few methods itself
-(`get_status`, `read_text_file`, `save_text_file`). The contract declares them
-in `BridgeMethodMap`, and the frontend calls them through the typed
+events (see `backend/src/api/contracts.ts`). The frontend reaches both
+processes through one engine link (`src/engineLink.ts`). It calls every engine
+method through the typed `rpc(method, params)`, which `main.py` forwards
+unchanged. `main.py` answers a few methods itself (`get_status`,
+`read_text_file`, `save_text_file`). The contract declares them in
+`BridgeMethodMap`, and the frontend calls them through the typed
 `bridge(method, ...args)`. Engine events reach the frontend as `backend_event`
 via `decky.emit`, declared in `BridgeEventMap`. `tools/test_main_bridge.py`
 fails when `main.py`'s methods or events stop matching the contract.
+
+The plugin connects Decky's adapter (`src/services/backend.ts`) once, when it
+loads. Tests connect the typed fake (`src/testSupport/fakeEngine.ts`), which
+answers each call at once or holds it until the test answers. Stores take
+`engine.rpc` when they are built and register for events with the link's one
+router, so an event reaches its store while the panel is closed. Components
+read stores and never subscribe to events.
 
 ## Engine layout
 
@@ -193,6 +201,10 @@ It holds the backup lists and copy sources that Options, Manage backups and
 Settings copy show, the actions that change them, and the one operation
 slot. Lists are per-installation resources from `src/keyedResource.ts`,
 which handles viewers, shared polling and stale answers.
+Components read every engine value this way (`src/useResource.ts`):
+previous versions' space, the TradeSkillMaster reads (`src/tsmReads.ts`),
+recovery details, CurseForge's access status and the import preview each
+have one resource, and none keeps a request counter of its own.
 `src/wtfAffected.ts` decides which lists each change makes stale.
 `src/wtfSession.ts` connects the lifecycle to the engine and gives views
 their hooks. The lifecycle reads time through `src/clock.ts`, so tests drive

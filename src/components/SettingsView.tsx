@@ -9,7 +9,7 @@ import { diagnosticsStore } from "../diagnosticsStore";
 import { useRestoreFocus } from "./FocusSlot";
 import { WtfBackupSection } from "./WtfBackupSection";
 import { VIEW } from "./settings/common";
-import { InstallationsSection } from "./settings/InstallationsSection";
+import { InstallationsSection, type InstallationsSession } from "./settings/InstallationsSection";
 import { AddonListSection } from "./settings/AddonListSection";
 import { SourcesSection } from "./settings/SourcesSection";
 import { UpdatesSection } from "./settings/UpdatesSection";
@@ -20,8 +20,8 @@ import { AboutSection } from "./settings/AboutSection";
 interface Props {
   installations: Installation[];
   selectedId: string | null;
-  /** Reload installations + addons after structural changes. */
-  onChanged: () => Promise<void>;
+  /** The addon session: installation writes and installs go through it. */
+  session: InstallationsSession;
   /** Focus the last used row again on mount (guide S21). */
   restoreRows: boolean;
 }
@@ -34,7 +34,7 @@ interface Props {
  * reads the companion status from them). The section order is the focus
  * order (FocusRow ids, guide S21).
  */
-export function SettingsView({ installations, selectedId, onChanged, restoreRows }: Props) {
+export function SettingsView({ installations, selectedId, session, restoreRows }: Props) {
   useRestoreFocus(VIEW, restoreRows);
   const { providers } = useSyncExternalStore(sourcesStore.subscribe, sourcesStore.get);
   // Not `providers[…].configured`: that is true for either key, and the
@@ -82,13 +82,9 @@ export function SettingsView({ installations, selectedId, onChanged, restoreRows
       <InstallationsSection
         installations={installations}
         selectedId={selectedId}
-        onChanged={onChanged}
+        session={session}
       />
-      <AddonListSection
-        installations={installations}
-        selectedId={selectedId}
-        onChanged={onChanged}
-      />
+      <AddonListSection installations={installations} selectedId={selectedId} />
       <WtfBackupSection installation={selected} />
       <SourcesSection
         providers={providers}
@@ -101,11 +97,7 @@ export function SettingsView({ installations, selectedId, onChanged, restoreRows
       />
       <UpdatesSection />
       <SteamLibrarySection />
-      <NotificationsSection
-        diagnostics={diagnostics}
-        installation={selected}
-        onChanged={onChanged}
-      />
+      <NotificationsSection diagnostics={diagnostics} installation={selected} />
       <AboutSection />
     </Focusable>
   );

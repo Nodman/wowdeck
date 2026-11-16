@@ -263,7 +263,7 @@ function Content() {
             detecting={findingWow}
             result={findWowResult}
             onDetect={() => void addonSession.findWow()}
-            onAdded={addonSession.reloadAll}
+            session={addonSession}
             restoreRows={restoreRows}
           />
           {installations.length > 0 && (
@@ -312,7 +312,7 @@ function Content() {
         <SettingsView
           installations={installations}
           selectedId={selectedId}
-          onChanged={addonSession.reloadAll}
+          session={addonSession}
           restoreRows={restoreRows}
         />
       )}

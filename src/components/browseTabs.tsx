@@ -35,7 +35,7 @@ import { browseArchive } from "../archivePicker";
 import { hasMore } from "../loadMore";
 import { activeInstallationId, addonSession } from "../session";
 import { resultActions, type ResultActionsDeps } from "../resultActions";
-import { resultKey, recoveryNeededFor, type AddonSessionState } from "../addonSession";
+import { resultKey, recoveryNeededFor } from "../addonSession";
 import { STEAM, descriptionStyle } from "../steamTheme";
 import { AddonResultRow } from "./AddonResultRow";
 import { ZeroCapabilityScreen } from "./ZeroCapabilityScreen";
@@ -95,9 +95,8 @@ const resultDeps = (onFindInstallations: () => void): ResultActionsDeps => ({
 
 /** Details for a result, following the session's state while it is open. */
 const openResultDetails = (r: SearchResult, onFindInstallations: () => void) => {
-  const live = (state: AddonSessionState) =>
-    resultActions(state, r, resultDeps(onFindInstallations));
-  openAddonDetailsModal({ ...resultDetails(r), ...live(addonSession.get()), live });
+  const deps = resultDeps(onFindInstallations);
+  openAddonDetailsModal({ ...resultDetails(r), live: (state) => resultActions(state, r, deps) });
 };
 
 /**
@@ -431,8 +430,14 @@ function FileImportSection({
     if (!preview) {
       return;
     }
+    const installationId = activeInstallationId();
     void installArchive(
-      (pair) => engine.rpc("addons.install", { installationId: activeInstallationId(), ...pair }),
+      // The addon session owns an install it didn't start: switching waits
+      // for it, and the shown list is read again when it settles.
+      (pair) =>
+        addonSession.installElsewhere(installationId, () =>
+          engine.rpc("addons.install", { installationId, ...pair }),
+        ),
       () => requireInstallation(onFindInstallations),
     );
   };

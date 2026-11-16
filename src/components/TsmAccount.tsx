@@ -15,7 +15,7 @@ import {
 } from "@decky/ui";
 import type { TradeSkillMasterAccount } from "../../backend/src/api/contracts";
 import { engine } from "../engineLink";
-import { useEngineChange } from "../engineChanges";
+import { useTsmAccount } from "../tsmReads";
 import { browseFocusView, holdBrowseSessionForModal } from "../browseSessionState";
 import { FocusRow, FocusSlot } from "./FocusSlot";
 import { STEAM } from "../steamTheme";
@@ -150,26 +150,7 @@ function ManageFollows({
 }
 
 export function TsmAccount() {
-  const [account, setAccount] = useState<TradeSkillMasterAccount>();
-  const [error, setError] = useState<string>();
-  const tsmChanges = useEngineChange("tradeskillmaster.changed");
-  useEffect(() => {
-    let active = true;
-    void engine
-      .rpc("tradeskillmaster.account", {})
-      .then((result) => {
-        if (active) {
-          setAccount(result);
-          setError(undefined);
-        }
-      })
-      .catch(() => {
-        if (active) setError("Could not load followed realms");
-      });
-    return () => {
-      active = false;
-    };
-  }, [tsmChanges]);
+  const { data: account, error } = useTsmAccount();
   return (
     <>
       <h2>

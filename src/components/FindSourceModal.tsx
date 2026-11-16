@@ -124,8 +124,13 @@ function FindSourceModal({ addon, onPick, closeModal }: Props) {
                   onDetails={() =>
                     openAddonDetailsModal({
                       ...resultDetails(source),
-                      installLabel: USE_LABEL,
-                      onInstall: async () => use(source),
+                      // One action whatever the session says: use this source.
+                      live: () => ({
+                        installLabel: USE_LABEL,
+                        tags: [],
+                        pending: false,
+                        onInstall: async () => use(source),
+                      }),
                     })
                   }
                 />
