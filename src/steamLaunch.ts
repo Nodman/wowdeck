@@ -23,10 +23,11 @@ export function launchControl(
   let reason = null;
   if (state.gameRunning === "running") reason = "WoW is already running";
   else if (state.busy) reason = "Starting…";
-  else if (!state.target.launchable) reason = "Start this client in Battle.net";
+  else if (!state.target.launchable)
+    reason = state.target.reason ?? "Start this client in Battle.net";
   else if (state.gameRunning === "unknown") reason = "Couldn't check if WoW is running";
   else if (!state.entryRunning && !canStartSteam) reason = "Steam launch is unavailable";
-  return { label: state.target.name, reason };
+  return { label: state.target.shortName, reason };
 }
 
 export function createLaunchActions(
@@ -52,6 +53,8 @@ export function createLaunchActions(
     }
   });
   return {
+    select: async (appId: number, targetId: string) =>
+      (await rpc("launch.select", { appId, targetId })).target,
     state: async (appId: number) => (await rpc("launch.state", { appId })).state,
     canStartSteam: () => Boolean(steam.getRunGame?.()),
     stopWatching,

@@ -95,7 +95,7 @@ export interface Installation {
   /** Absolute path of the Interface/AddOns directory. */
   addonsPath: string;
   displayName: string;
-  /** Short client name, e.g. "Forever Beta" (CLIENT_DISPLAY_NAMES). */
+  /** Short client name, e.g. "Forever Beta" (client table, wow/clients.ts). */
   clientName: string;
   /** WowUp's full client name, e.g. "World of Warcraft: Forever Beta". */
   clientFullName: string;
@@ -672,16 +672,42 @@ export interface TradeSkillMasterAuthStatus {
   account: string | null;
 }
 
-export interface LaunchClient {
-  installationId: string;
-  gameType: GameType;
+/** The Battle.net launcher's target id in `launch.select` and in saved choices. */
+export const BATTLE_NET_LAUNCH_TARGET = "battlenet";
+
+interface LaunchTargetFields {
+  /** What `launch.select` takes: an installation id, or BATTLE_NET_LAUNCH_TARGET. */
+  id: string;
+  /** The menu row's label: the client's full name, or "Battle.net". */
   name: string;
+  /** The Play button's second line: the client's short name, or "Battle.net". */
+  shortName: string;
   launchable: boolean;
+  /** Player-facing explanation for a client that cannot be started precisely. */
+  reason?: string;
+  /** A data: URL of the executable's icon; absent means WoWDeck's glyph. */
   icon?: string;
 }
 
+/** The Battle.net launcher itself: Steam's own launch, with no launch ask. */
+export interface BattleNetLaunchClient extends LaunchTargetFields {
+  kind: "battlenet";
+  id: typeof BATTLE_NET_LAUNCH_TARGET;
+  launchable: true;
+}
+
+/** A WoW client installed under the shortcut's WoW root. */
+export interface WowLaunchClient extends LaunchTargetFields {
+  kind: "wow";
+  gameType: GameType;
+}
+
+export type LaunchClient = BattleNetLaunchClient | WowLaunchClient;
+
 export interface LaunchState {
+  /** Battle.net first, then the WoW clients in client table order. */
   clients: LaunchClient[];
+  /** The saved choice for this shortcut; Battle.net when none is saved. */
   target: LaunchClient;
   entryRunning: boolean;
   gameRunning: GameRunning;
@@ -926,6 +952,14 @@ export interface MethodMap {
      */
     params: Record<string, never>;
     result: { cancelled: boolean };
+  };
+  /**
+   * Saves the shortcut's launch target. A WoW client also becomes the
+   * active installation; Battle.net leaves the active installation alone.
+   */
+  "launch.select": {
+    params: { appId: number; targetId: string };
+    result: { target: LaunchClient };
   };
   "launch.state": {
     params: { appId: number };
@@ -1454,6 +1488,8 @@ export interface CurseForgeAuthStatus {
 
 export interface PluginSettings {
   selectedInstallationId: string | null;
+  /** Explicit launch target (installation id or BATTLE_NET_LAUNCH_TARGET) by Steam app ID. Engine-written. */
+  steamLaunchTargets: Record<string, string>;
   enabledProviders: string[] | null;
   customWowPaths: string[];
   /** User-supplied CurseForge API key (never logged, never echoed in full). */

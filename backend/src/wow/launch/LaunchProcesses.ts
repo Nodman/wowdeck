@@ -1,12 +1,8 @@
 import { access, readFile, readdir, realpath, stat } from "node:fs/promises";
 import { X_OK } from "node:constants";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
-import type { GameType } from "../../api/contracts";
 import { isWowClientExecutable } from "../installation/WowExecutables";
 import type { LaunchEntry, LaunchWorld, Observation, Replay } from "./LaunchService";
-
-// WoWC follows Battle.net's last Classic selection, so it cannot identify a target.
-export const launchProducts: Partial<Record<GameType, string>> = { retail: "WoW", forever: "WoWF" };
 
 export interface LaunchProcess {
   pid: number;
@@ -62,7 +58,7 @@ async function replayFor(
   home: string,
   resolve: ResolvePath,
 ): Promise<Replay | undefined> {
-  const product = launchProducts[entry.target.gameType];
+  const product = entry.product;
   const data = process.env.get("STEAM_COMPAT_DATA_PATH");
   if (!product || !data || await resolve(data) !== dirname(prefix) || await resolve(join(data, "pfx")) !== prefix) return;
 
@@ -126,7 +122,7 @@ export async function observeLaunch(
     if (game) {
       const exe = winePath(first, prefix);
       const actual = exe ? await resolve(exe) : undefined;
-      if (actual && dirname(actual) === entry.targetDirectory) observed.targetRunning = true;
+      if (actual && entry.targetDirectory && dirname(actual) === entry.targetDirectory) observed.targetRunning = true;
       continue;
     }
 
@@ -219,6 +215,30 @@ function releaseWithSession(child: ReturnType<typeof Bun.spawn>, replay: Replay)
   );
 }
 
+/** The runtime runs a bwrap preflight with `true` before invoking Proton. */
+async function replayStartupFailed(
+  stderr: ReadableStream<Uint8Array>,
+  exited: Promise<number>,
+): Promise<boolean> {
+  // Drain the pipe so the child cannot block. Keep only a bounded diagnostic
+  // prefix and never log its contents.
+  const prefix = new Uint8Array(16 * 1024);
+  let used = 0;
+  try {
+    for await (const chunk of stderr) {
+      const available = Math.min(chunk.length, prefix.length - used);
+      prefix.set(chunk.subarray(0, available), used);
+      used += available;
+    }
+    const code = await exited;
+    const diagnostic = new TextDecoder().decode(prefix.subarray(0, used));
+    const failedPreflight = /^(?:pressure-vessel-wrap\[\d+\]: E: Child process exited with code \d+: )?bwrap: execvp true: No such file or directory\r?$/m;
+    return code > 0 && failedPreflight.test(diagnostic);
+  } catch {
+    return false;
+  }
+}
+
 export function localLaunchWorld(home: string, getSteamHomes: () => string[]): LaunchWorld {
   return {
     now: () => performance.now(),
@@ -232,20 +252,20 @@ export function localLaunchWorld(home: string, getSteamHomes: () => string[]): L
       return observeLaunch(entry, processes, homes.filter((path) => path !== undefined), home, resolveLocal);
     },
     async ask(replay) {
-      if (!replay) return false;
+      if (!replay) return null;
       try {
         const [battle] = await Promise.all([
           stat(replay.argv[5]!), access(replay.argv[0]!, X_OK), access(replay.argv[3]!, X_OK),
         ]);
-        if (!battle.isFile()) return false;
+        if (!battle.isFile()) return null;
         const child = Bun.spawn(replay.argv, {
-          cwd: home, env: replay.env, stdin: "ignore", stdout: "ignore", stderr: "ignore",
+          cwd: home, env: replay.env, stdin: "ignore", stdout: "ignore", stderr: "pipe",
         });
         releaseWithSession(child, replay);
         child.unref();
-        return true;
+        return { startupFailed: replayStartupFailed(child.stderr, child.exited) };
       } catch {
-        return false;
+        return null;
       }
     },
   };

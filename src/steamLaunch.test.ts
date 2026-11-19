@@ -6,7 +6,9 @@ import { createFakeEngine } from "./testSupport/fakeEngine";
 
 const target = {
   name: "Forever",
-  installationId: "forever",
+  shortName: "Forever",
+  kind: "wow",
+  id: "forever",
   gameType: "forever",
   launchable: true,
 } as const;
@@ -111,4 +113,61 @@ test("an already-running entry works without Steam's start API", async () => {
   expect(launchControl(ready, actions.canStartSteam())?.reason).toBeNull();
   expect((await actions.start(42))?.busy).toBe(true);
   expect(fake.paramsOf("launch.start")).toEqual([{ appId: 42 }]);
+});
+
+test("the selected installation is sent to the linked game's launch API while WoW is running", async () => {
+  const retail = {
+    ...target,
+    kind: "wow",
+    id: "retail",
+    name: "Retail",
+    shortName: "Retail",
+    gameType: "retail",
+  } as const;
+  const fake = createFakeEngine({
+    "launch.state": { state: { ...ready, gameRunning: "running", clients: [target, retail] } },
+    "launch.select": { target: retail },
+  });
+  const actions = createLaunchActions(fake.rpc, createEventRouter(), () => {});
+  expect(launchControl(await actions.state(42))?.reason).toBe("WoW is already running");
+  expect(await actions.select(42, "retail")).toEqual(retail);
+  expect(fake.paramsOf("launch.select")).toEqual([{ appId: 42, targetId: "retail" }]);
+});
+
+test("the launch control shows the selected client's specific limitation", () => {
+  expect(
+    launchControl({
+      ...ready,
+      target: {
+        ...target,
+        launchable: false,
+        reason: "Battle.net starts whichever Classic version you last selected there",
+      },
+    })?.reason,
+  ).toBe("Battle.net starts whichever Classic version you last selected there");
+});
+
+test("Steam Play suppresses RunGame both before and during the engine request", async () => {
+  for (const playAlreadyPressed of [true, false]) {
+    const fake = createFakeEngine();
+    let starting = playAlreadyPressed;
+    const launches: string[] = [];
+    const actions = createLaunchActions(fake.rpc, createEventRouter(), () => {}, {
+      getRunGame: () => (id) => {
+        launches.push(id);
+      },
+      isStartingOrRunning: () => starting,
+    });
+    const start = actions.start(42);
+    expect(fake.paramsOf("launch.start")).toEqual([
+      { appId: 42, canStartSteam: true, ...(playAlreadyPressed && { steamEntryRunning: true }) },
+    ]);
+    starting = true;
+    await fake.next("launch.start").resolve({
+      state: { ...ready, busy: true },
+      ...(playAlreadyPressed ? {} : { steamStart: { gameId: "180422148096", attemptId: "one" } }),
+    });
+    await start;
+    expect(launches).toEqual([]);
+  }
 });

@@ -128,3 +128,18 @@ the shortcut's decimal game ID string. The local app overview's
 (Running). The installed Steam client exposed
 `Apps.RegisterForGameActionShowError`. The successful run produced no
 launch error notice. See the [stopped-entry run](../hardware/2026-11-18-steam-stopped-entry/README.md).
+
+The Steam client app-overview schema gives
+`CAppOverview_PerClientData.display_status` the `EDisplayStatus` enum.
+`Launching` is 1 and `Running` is 4. Decky's Steam client types use that
+enum for `appStore.GetAppOverviewByAppID(appId).local_per_client_data`.
+WoWDeck reads the field before requesting a start and again before calling
+`RunGame`. Either value tells it to let the existing Steam launch proceed.
+
+DEVICE, 2026-11-18. The combined build captured `11 → 1 → 4` on both
+Steam starts. See the [combined Deck run](../hardware/2026-11-18-steam-launch-integration/README.md).
+
+If the overview is missing, unreadable or uses an unfamiliar value, the engine
+checks for the shortcut session through its own process scan. That scan cannot
+see Steam's launch before there is a process to observe.
+[Steam client app-overview schema](https://github.com/SteamDatabase/Protobufs/blob/89b77382edac5f747bfc196c2edf8996a7fe92bc/steam/steammessages_appoverview.proto#L6-L18)

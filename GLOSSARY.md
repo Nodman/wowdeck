@@ -296,6 +296,31 @@ _Avoid_: state restore
 
 ## WoW clients
 
+**Client table**:
+The one record per WoW client in `backend/src/wow/clients.ts` (`WOW_CLIENTS`).
+Each record holds the client's flavor folder, game type, short name, full
+name, former names and Battle.net launch kind. Every client lookup reads it,
+so adding or renaming a client is an edit to that table alone.
+_Avoid_: client map, launch table, name table
+
+**Product code**:
+The Battle.net code that starts a game, for example `WoWF` for Forever. The
+client table records whether a code starts one exact client. Classic's code
+starts whichever Classic version the player last picked in Battle.net.
+_Avoid_: launch token, game code
+
+**Version UID**:
+The Battle.net ID that selects a game version without starting it, for example
+`wow_classic_era`. The player still presses Play in Battle.net.
+_Avoid_: product code, launch UID
+
+**Launch target**:
+What Play starts on a linked Battle.net shortcut's game page: Battle.net
+itself, or one WoW client under the shortcut's WoW root. It is saved per
+Steam shortcut, and Battle.net is the default. Choosing a client also makes it
+the active installation; choosing Battle.net does not.
+_Avoid_: launch client (for Battle.net), play target
+
 **Forever**:
 The live World of Warcraft: Forever client, installed in `_forever_`. It runs
 the Retail game binary; only its folder tells it apart from Retail.

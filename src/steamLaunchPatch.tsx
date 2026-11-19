@@ -6,10 +6,9 @@ import {
   getReactInstance,
   playSectionClasses,
 } from "@decky/ui";
-import { LinkedSteamLaunchControl } from "./components/SteamLaunchControl";
+import { isValidElement } from "react";
+import { SteamLaunchActionRow, type SteamActionRowProps } from "./components/SteamLaunchControl";
 import { findPlayRowInsertion, type RowClasses } from "./steamPlayRow";
-
-const CONTROL_KEY = "wowdeck-launch";
 
 interface ActionRow {
   render: (props: { overview?: { appid?: unknown } }) => unknown;
@@ -83,18 +82,11 @@ export function createSteamLaunchPatch() {
           const id = props?.overview?.appid;
           if (typeof id !== "number") return tree;
           const insertion = findPlayRowInsertion(tree, classes);
-          if (!insertion) {
+          if (!insertion || insertion.row !== tree || !isValidElement<SteamActionRowProps>(tree)) {
             warn();
             return tree;
           }
-          const children = insertion.children as ({ key?: string | null } | null)[];
-          if (!children.some((child) => child?.key === CONTROL_KEY)) {
-            children.splice(
-              insertion.index,
-              0,
-              <LinkedSteamLaunchControl key={CONTROL_KEY} appId={id} />,
-            );
-          }
+          return <SteamLaunchActionRow key={id} appId={id} row={tree} index={insertion.index} />;
         } catch {
           warn();
         }

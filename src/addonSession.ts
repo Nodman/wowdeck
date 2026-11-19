@@ -183,7 +183,7 @@ export interface AddonSession extends Pick<Store<AddonSessionState>, "get" | "su
    * Make another installation the active one. The kept addon list and the
    * Get Addons results belong to the previous one, so both are reset.
    */
-  selectInstallation(id: string): Promise<void>;
+  selectInstallation(id: string, persist?: (id: string) => Promise<void>): Promise<void>;
   /**
    * Retry recovery in one installation (ADR 0006, #108). The engine checks
    * and decides; this reads the recovery status and the list again, toasts
@@ -637,7 +637,7 @@ export function createAddonSession(deps: AddonSessionDeps): AddonSession {
       }
       return result;
     },
-    async selectInstallation(id) {
+    async selectInstallation(id, persist) {
       // Also guards a selector opened before an install started: refused,
       // with no selection RPC, and not replayed later.
       if (store.get().switching || installationSwitchBlocked(store.get())) {
@@ -647,7 +647,8 @@ export function createAddonSession(deps: AddonSessionDeps): AddonSession {
       store.patch({ switching: true });
       try {
         // The engine's selection first, so the two never disagree.
-        await rpc("installations.select", { installationId: id });
+        if (persist) await persist(id);
+        else await rpc("installations.select", { installationId: id });
         store.patch({ selectedId: id, addons: [] });
         // Get Addons results depend on the installation's game version.
         resetBrowseSessionState();

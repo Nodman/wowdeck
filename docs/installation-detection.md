@@ -200,6 +200,13 @@ override, Steam's appId prefix determines the runtime association. A known-folde
 fallback alone never links an unrelated Steam entry. Each scan refreshes
 these links and removes stale ones without deleting installations.
 
+The game-page launch control needs one WoW root for the shortcut. When
+discovery links several roots, a canonical shortcut path to a root or
+flavor, or a Battle.net build record that matches a linked flavor, can
+identify the root. If that evidence points to more than one root or is
+absent, the page omits the launch control. The launch product and remembered
+client choice apply after the root is known.
+
 Discovery runs at engine startup and through Find WoW. The game-page section
 and home-tile badge use all detected links, alongside the existing manual
 picker. Options can disable automatic linking. Linking never changes

@@ -10,6 +10,8 @@ import { activeInstallationId } from "../session";
 import { STEAM, descriptionStyle } from "../steamTheme";
 import { updateSummaryText } from "../steamLibrary";
 import { steamUpdates } from "../steamUpdates";
+import { steamLaunchState } from "../steamLaunchActions";
+import { useResource } from "../useResource";
 
 const BUTTON = { minWidth: 0, width: "auto", padding: "8px 16px" } as const;
 
@@ -35,6 +37,8 @@ export function WowGameSection({
     if (anchor.current) attachLaunch(anchor.current, appId);
   }, [appId, attachLaunch]);
 
+  const launch = useResource(steamLaunchState, String(appId));
+  const checkingLaunch = launch.loading && !launch.data;
   const { summary, checking } = useSyncExternalStore(steamUpdates.subscribe, steamUpdates.get);
   const [updating, setUpdating] = useState(false);
 
@@ -102,6 +106,10 @@ export function WowGameSection({
         >
           {status}
         </div>
+        {launch.error && (
+          <div style={{ ...descriptionStyle, color: STEAM.danger }}>{launch.error}</div>
+        )}
+        {checkingLaunch && <div style={descriptionStyle}>Checking WoW launch status…</div>}
       </div>
       <Focusable flow-children="row" style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
         {total > 0 && (
@@ -116,6 +124,15 @@ export function WowGameSection({
         >
           Check for updates
         </DialogButton>
+        {launch.error && (
+          <DialogButton
+            style={BUTTON}
+            disabled={launch.loading}
+            onClick={() => void launch.refresh()}
+          >
+            Retry
+          </DialogButton>
+        )}
         <DialogButton style={BUTTON} onClick={open}>
           Open
         </DialogButton>

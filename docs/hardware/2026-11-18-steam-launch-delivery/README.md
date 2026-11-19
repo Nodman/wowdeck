@@ -127,3 +127,18 @@ The probes made no direct Steam file or settings edits. Between the
 pre- and post-launch checks for the controlled run, Steam's `config.vdf`
 hash was unchanged and its `shortcuts.vdf` hash changed. The check
 recorded only hashes, so it did not identify the field Steam wrote.
+
+## Replay failure reporting
+
+The engine can prove that replay failed to start if the executable checks or
+spawn fail. For a replay that spawns and exits with an error, it recognizes
+the pressure-vessel `bwrap` preflight failure recorded in the
+[#257 Kaptan exploration](https://github.com/sigboe/wowdeck/issues/257).
+It reads a bounded prefix of replay stderr and discards it without logging.
+The engine keeps the usual retry schedule for spawned replays. If every
+replay has a proven startup failure, the attempt ends with one failure notice.
+An exit code, a signal, an unclassified runtime diagnostic or silence cannot
+establish whether Battle.net got the request. If any replay may have reached
+Battle.net, the attempt can end silently. The ld cache diagnostic from
+Kaptan can accompany a runtime failure, but the diagnostic alone does not
+prove pressure-vessel stopped before invoking Proton.

@@ -560,10 +560,12 @@ describe("settings.set, key by key", () => {
       lastAutoUpdate: { at: 1, updated: ["x"], failed: [], skipped: null },
       newlyUpdatedHours: 1,
       pluginUpdateToastShownFor: "9.9.9",
+      steamLaunchTargets: { "42": "forged-installation" },
     });
     expect(after.lastAutoUpdate).toEqual(before.lastAutoUpdate);
     expect(after.newlyUpdatedHours).toEqual(before.newlyUpdatedHours);
     expect(after.pluginUpdateToastShownFor).toEqual(before.pluginUpdateToastShownFor);
+    expect(after.steamLaunchTargets).toEqual(before.steamLaunchTargets);
   });
 
   test("keys the UI never writes", async () => {

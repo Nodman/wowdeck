@@ -1,6 +1,9 @@
 import { expect, test } from "bun:test";
-import { observeLaunch, type LaunchProcess } from "../src/wow/launch/LaunchProcesses";
-import type { LaunchEntry } from "../src/wow/launch/LaunchService";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { localLaunchWorld, observeLaunch, type LaunchProcess } from "../src/wow/launch/LaunchProcesses";
+import type { LaunchEntry, Replay } from "../src/wow/launch/LaunchService";
 
 const home = "/home/deck";
 const steam = home + "/.local/share/Steam";
@@ -9,9 +12,9 @@ const runtime = steam + "/steamapps/common/SteamLinuxRuntime_4/_v2-entry-point";
 const proton = steam + "/compatibilitytools.d/GE-Proton/proton";
 const battle = prefix + "/drive_c/Program Files (x86)/Battle.net/Battle.net.exe";
 const reaper = steam + "/steamrt64/reaper";
-const target = { installationId: "forever", name: "Forever", gameType: "forever", launchable: true } as const;
+const target = { kind: "wow", id: "forever", name: "Forever", shortName: "Forever", gameType: "forever", launchable: true } as const;
 const entry: LaunchEntry = {
-  appId: 123, clients: [target], target, targetDirectory: "/games/wow/_forever_",
+  appId: 123, clients: [target], target, targetDirectory: "/games/wow/_forever_", product: "WoWF",
   prefixes: [prefix], libraries: [steam],
 };
 const launcher: LaunchProcess = {
@@ -61,3 +64,48 @@ test("a replay can be released only when the original launcher and its prefix ar
   expect(await replayCanStop(plan, null, async (path) => path)).toBe(false);
   expect(await replayCanStop(plan, [], async (path) => path)).toBe(true);
 });
+
+test("the runtime bwrap preflight failure proves replay startup failed", async () => {
+  await replayFixture(async (ask) => {
+    expect(await ask("bwrap: execvp true: No such file or directory", 1)).toBe(true);
+    expect(await ask(
+      "pressure-vessel-wrap[42]: E: Child process exited with code 1: bwrap: execvp true: No such file or directory", 1,
+    )).toBe(true);
+  });
+});
+
+test("a replay exit code, generic launcher error or signal leaves delivery uncertain", async () => {
+  await replayFixture(async (ask) => {
+    expect(await ask("Battle.net could not start WoW", 1)).toBe(false);
+    expect(await ask("", 1)).toBe(false);
+    expect(await ask("bwrap: execvp true: No such file or directory", 0)).toBe(false);
+    expect(await ask("", "signal")).toBe(false);
+  });
+});
+
+async function replayFixture(run: (
+  ask: (diagnostic: string, exit: number | "signal") => Promise<boolean | undefined>,
+) => Promise<void>) {
+  const root = await mkdtemp(join(tmpdir(), "wowdeck-replay-"));
+  const runtime = join(root, "_v2-entry-point");
+  const proton = join(root, "proton");
+  const battle = join(root, "Battle.net.exe");
+  const replay: Replay = {
+    reaperPid: process.pid,
+    prefix: root,
+    argv: [runtime, "--verb=run", "--", proton, "run", battle],
+    env: {},
+  };
+  const world = localLaunchWorld(root, () => []);
+  try {
+    await writeFile(proton, "", { mode: 0o700 });
+    await writeFile(battle, "");
+    await run(async (diagnostic, exit) => {
+      const end = exit === "signal" ? 'kill -TERM "$$"' : `exit ${exit}`;
+      await writeFile(runtime, `#!/bin/sh\nprintf '%s\\n' '${diagnostic}' >&2\n${end}\n`, { mode: 0o700 });
+      return (await world.ask(replay))?.startupFailed;
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}

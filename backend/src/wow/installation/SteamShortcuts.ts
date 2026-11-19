@@ -11,10 +11,15 @@ export interface SteamShortcut {
   launchOptions: string;
 }
 
+/** The product named by a Battle.net --exec launch command, if present. */
+export function shortcutExecProduct(launchOptions: string): string | undefined {
+  return /--exec(?:=|\s+)(?:["'])?launch\s+([^\s"']+)/i.exec(launchOptions)?.[1];
+}
+
 /** A shared Battle.net prefix must not attach a Diablo/Overwatch-specific shortcut. */
 export function isWowShortcut(shortcut: SteamShortcut): boolean {
   const exe = shortcut.exe.trim().replace(/^"(.*)"$/, "$1").replaceAll("\\", "/");
-  const product = /--exec(?:=|\s+)(?:["'])?launch\s+([^\s"']+)/i.exec(shortcut.launchOptions)?.[1]
+  const product = shortcutExecProduct(shortcut.launchOptions)
     ?? /battlenet:\/\/([^\s/"'?]+)/i.exec(shortcut.launchOptions)?.[1];
   return product ? /^wow/i.test(product) : isWowLaunchExecutable(basename(exe));
 }
