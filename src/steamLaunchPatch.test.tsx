@@ -175,15 +175,12 @@ const battlenet: LaunchClient = {
   id: "battlenet",
   name: "Battle.net",
   shortName: "Battle.net",
-  launchable: true,
 };
 const forever: LaunchClient = {
   kind: "wow",
   id: "forever",
-  gameType: "forever",
   name: "World of Warcraft: Forever",
   shortName: "Forever",
-  launchable: true,
 };
 const state: LaunchState = {
   clients: [battlenet, forever],

@@ -1,17 +1,17 @@
 import { realpath } from "node:fs/promises";
-import { basename, dirname, isAbsolute, join } from "node:path";
+import { basename, join } from "node:path";
 import {
   BATTLE_NET_LAUNCH_TARGET,
   BATTLE_NET_NAME,
   type BattleNetLaunchClient,
-  type GameType,
   type Installation,
   type WowLaunchClient,
 } from "../../api/contracts";
 import { WOW_CLIENTS, wowClientForFolder } from "../clients";
-import { readFlavorBuildInfo, type InstallationDetector } from "../installation/InstallationDetector";
+import type { InstallationDetector } from "../installation/InstallationDetector";
 import { isWowShortcut, shortcutPrefixOverrides } from "../installation/SteamShortcuts";
-import { isWowClientExecutable, isWowLaunchExecutable } from "../installation/WowExecutables";
+import { isWowClientExecutable } from "../installation/WowExecutables";
+import { battleNetInstalls } from "./BattleNetInstalls";
 import { executableIcon, launcherIcon } from "./ExecutableIcon";
 import type { LaunchEntry } from "./LaunchService";
 
@@ -23,8 +23,8 @@ export async function resolveLaunchEntry(
   steam: Pick<InstallationDetector, "steamLibraryFolders" | "steamShortcuts">,
   preferredId?: string,
 ): Promise<LaunchEntry | null> {
-  const linked = installations.filter((i) => i.steamGames?.some((game) => game.appId === appId));
-  if (!linked.length) return null;
+  // The page belongs to WoWDeck only when it linked an installation to it.
+  if (!installations.some((i) => i.steamGames?.some((game) => game.appId === appId))) return null;
   const [shortcuts, folders] = await Promise.all([
     steam.steamShortcuts(),
     steam.steamLibraryFolders(),
@@ -60,108 +60,89 @@ export async function resolveLaunchEntry(
       (await Promise.all(candidates.map(canonical))).filter((prefix) => prefix !== undefined),
     ),
   ];
-  // A custom Wine prefix must still be the pfx used by Steam's replay.
+  // Proton's prefix is always `<compat data>/pfx`; anything else isn't the
+  // prefix Steam's replay reaches.
   if (prefixes.length !== 1 || basename(prefixes[0]!) !== "pfx") return null;
 
-  const paths = await Promise.all(
-    linked.map(async (installation) => ({
-      installation,
-      path: await canonical(installation.path),
-      root: await canonical(dirname(installation.path)),
-    })),
-  );
-  const roots = new Set(paths.map(({ root }) => root));
-  let ownedRoot = paths[0]?.root;
-  if (roots.size > 1) {
-    // Prefix discovery can link several registry roots to the same shortcut.
-    // Use corroborating shortcut paths or matching Battle.net build records.
-    const shortcutPaths = [shortcut.exe, ...descriptions.map((other) => other.startDir)];
-    const locations = await Promise.all(shortcutPaths.map(async (raw) => {
-      const path = raw.trim().replace(/^"(.*)"$/, "$1");
-      if (!isAbsolute(path)) return;
-      return canonical(isWowLaunchExecutable(basename(path)) ? dirname(path) : path);
-    }));
-    const evidence = await Promise.all(paths.map(async ({ installation, path, root }) => {
-      if (!root) return;
-      if (locations.includes(root)) return root;
-      if (!path || dirname(path) !== root || basename(path) !== basename(installation.path)) return;
-      return locations.includes(path) || await readFlavorBuildInfo(path) ? root : undefined;
-    }));
-    const owners = new Set(evidence.filter((root) => root !== undefined));
-    if (owners.size !== 1) return null;
-    [ownedRoot] = owners;
+  // Battle.net in that prefix decides which clients exist: a folder it
+  // doesn't list (left behind, copied, or another prefix's) can't start.
+  const installs = await battleNetInstalls(prefixes[0]!);
+  if (!installs) return null;
+  const listed = new Set(installs.map(({ path }) => path));
+  const seen = new Set<string>();
+  const present: Array<{ installation: Installation; path: string }> = [];
+  for (const installation of installations) {
+    const path = await canonical(installation.path);
+    if (!path || !listed.has(path) || seen.has(path)) continue;
+    seen.add(path);
+    present.push({ installation, path });
   }
-  if (!ownedRoot) return null;
-
-  const owned = paths.filter(({ root }) => root === ownedRoot);
-  // A flavor alias must resolve to the registered flavor inside the chosen root.
-  if (owned.some(({ installation, path }) =>
-    path !== undefined && (dirname(path) !== ownedRoot || basename(path) !== basename(installation.path))
-  )) return null;
-  const present = owned.flatMap(({ installation, path }) => (path ? [{ installation, path }] : []));
   if (!present.length) return null;
 
-  const wow = present.map(({ installation, path }) => {
-    const launch = clientLaunch(basename(path).toLowerCase(), installation.gameType);
-    const client: WowLaunchClient = {
-      kind: "wow",
-      id: installation.id,
-      gameType: installation.gameType,
-      name: installation.clientFullName,
-      shortName: installation.clientName,
-      launchable: "product" in launch,
-      ...("reason" in launch && { reason: launch.reason }),
-    };
-    return { client, path, product: "product" in launch ? launch.product : undefined, order: tableOrder(path) };
-  });
-  wow.sort((a, b) => a.order - b.order);
+  // One row per Retail and Forever install, one Classic row for every
+  // Classic version: WoWC starts whichever Battle.net has active.
+  const rows: Row[] = [];
+  for (const { installation, path } of present) {
+    const client = wowClientForFolder(basename(installation.path).toLowerCase());
+    if (!client?.launch || client.gameType !== installation.gameType) continue;
+    const folder = { path, shortName: client.shortName, order: WOW_CLIENTS.indexOf(client) };
+    const shared = client.launch.row && rows.find(({ client: row }) => row.id === client.launch!.row);
+    if (shared) {
+      shared.folders.push(folder);
+      shared.ids.push(installation.id);
+      continue;
+    }
+    rows.push({
+      client: client.launch.row
+        ? { kind: "wow", id: client.launch.row, name: CLASSIC_NAME, shortName: CLASSIC_SHORT_NAME }
+        : { kind: "wow", id: installation.id, name: installation.clientFullName, shortName: installation.clientName },
+      ids: [installation.id],
+      product: client.launch.code,
+      folders: [folder],
+    });
+  }
+  for (const row of rows) row.folders.sort((a, b) => a.order - b.order);
+  rows.sort((a, b) => a.folders[0]!.order - b.folders[0]!.order);
 
   const battleNet: BattleNetLaunchClient = {
     kind: "battlenet",
     id: BATTLE_NET_LAUNCH_TARGET,
     name: BATTLE_NET_NAME,
     shortName: BATTLE_NET_NAME,
-    launchable: true,
   };
-  // A saved choice the entry no longer offers falls back to Battle.net.
-  const chosen = wow.find(({ client }) => client.launchable && client.id === preferredId);
+  // A saved Mists, Era or Anniversary installation is the Classic row; a
+  // saved choice the entry no longer offers falls back to Battle.net.
+  const chosen = preferredId === undefined
+    ? undefined
+    : rows.find(({ client, ids }) => client.id === preferredId || ids.includes(preferredId));
   return {
     appId,
-    clients: [battleNet, ...wow.map(({ client }) => client)],
+    clients: [battleNet, ...rows.map(({ client }) => client)],
     target: chosen?.client ?? battleNet,
-    ...(chosen && { targetDirectory: chosen.path, product: chosen.product }),
+    ...(chosen && {
+      targetFolders: chosen.folders.map(({ path, shortName }) => ({ path, shortName })),
+      product: chosen.product,
+    }),
     prefixes,
     libraries,
     icons: Object.fromEntries([
       [battleNet.id, () => launcherIcon(unquote(shortcut.exe))],
-      ...wow.map(({ client, path }) => [client.id, () => executableIcon(path)]),
+      // Classic's icon is its first version's in table order: Mists, Era, Anniversary.
+      ...rows.map(({ client, folders }) => [client.id, () => executableIcon(folders[0]!.path)]),
     ]),
   };
 }
 
+const CLASSIC_NAME = "World of Warcraft Classic";
+const CLASSIC_SHORT_NAME = "Classic";
+
+interface Row {
+  client: WowLaunchClient;
+  /** The installations behind the row: what earlier pickers saved. */
+  ids: string[];
+  product: string;
+  /** Its client folders, in client table order. */
+  folders: Array<{ path: string; shortName: string; order: number }>;
+}
+
 const unquote = (path: string) => path.trim().replace(/^"(.*)"$/, "$1");
-
-/** Clients sort in client table order; a folder the table lacks sorts last. */
-function tableOrder(path: string): number {
-  const client = wowClientForFolder(basename(path).toLowerCase());
-  const index = client ? WOW_CLIENTS.indexOf(client) : -1;
-  return index < 0 ? WOW_CLIENTS.length : index;
-}
-
-/**
- * Whether Battle.net can start this client precisely, from the client
- * table's launch kind. Only an exact product code starts one client;
- * a version UID only selects the version in Battle.net.
- */
-function clientLaunch(folder: string, gameType: GameType): { product: string } | { reason: string } {
-  const client = wowClientForFolder(folder);
-  const launch = client?.launch;
-  if (launch?.kind === "version") {
-    return { reason: "Battle.net can select this version. Press Play there to start it." };
-  }
-  if (launch?.kind === "product" && client!.gameType === gameType) {
-    if (launch.exact) return { product: launch.code };
-    return { reason: "Battle.net starts whichever Classic version you last selected there" };
-  }
-  return { reason: "WoWDeck has no launch command for this client" };
-}

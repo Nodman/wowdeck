@@ -2,7 +2,6 @@ import { findClassModule, Focusable, MenuItem } from "@decky/ui";
 import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { FaBoxOpen, FaChevronDown } from "react-icons/fa";
 import type { LaunchClient, LaunchState } from "../../backend/src/api/contracts";
-import { installationSwitchBlocked } from "../addonSession";
 import { addonSession } from "../session";
 import { settingsStore } from "../settings";
 import { linkedSteamGames } from "../steamLibrary";
@@ -115,7 +114,7 @@ function useLaunchState(appId: number) {
   const { settings } = useSyncExternalStore(settingsStore.subscribe, settingsStore.get);
   const session = useSyncExternalStore(addonSession.subscribe, addonSession.get);
   const linked = isLinked(appId, settings, session.installations);
-  return { session, ...useResource(steamLaunchState, linked ? String(appId) : null) };
+  return useResource(steamLaunchState, linked ? String(appId) : null);
 }
 
 /**
@@ -193,10 +192,6 @@ export function WowPlayButton({
   return patched ?? tree;
 }
 
-/** WoWDeck can't start it, or picking it would switch My Addons while that can't switch. */
-const isDisabled = (client: LaunchClient, switchBlocked: boolean) =>
-  !client.launchable || (client.kind === "wow" && switchBlocked);
-
 /** WoWDeck's rows in the "Play from…" menu, live while it is open. */
 function WowPlayRows({
   appId,
@@ -209,23 +204,15 @@ function WowPlayRows({
   localClientId: unknown;
   localSelected: boolean;
 }) {
-  const { data, session, refresh } = useLaunchState(appId);
+  const { data, refresh } = useLaunchState(appId);
   const state = data ?? initial;
-  const switchBlocked = session.switching || installationSwitchBlocked(session) !== null;
   const css = steamPlayClasses();
 
+  // Picking only chooses what Play starts: My Addons keeps its installation.
   const pick = async (client: LaunchClient) => {
-    if (isDisabled(client, switchBlocked)) return;
     setSteamStreamingClient(appId, localClientId);
     try {
-      if (client.kind === "battlenet") {
-        // Battle.net is no installation: My Addons stays on the active one.
-        await steamLaunch.select(appId, client.id);
-      } else {
-        await addonSession.selectInstallation(client.id, async (id) => {
-          await steamLaunch.select(appId, id);
-        });
-      }
+      await steamLaunch.select(appId, client.id);
     } catch (caught) {
       toastError(`Couldn't choose ${client.shortName}`, caught);
     } finally {
@@ -237,7 +224,6 @@ function WowPlayRows({
     <MenuItem
       key={`wowdeck-${client.id}`}
       {...{ className: css?.StreamingContextMenuItem }}
-      disabled={isDisabled(client, switchBlocked)}
       onSelected={() => void pick(client)}
     >
       <span className={css?.CheckContainer}>
@@ -250,8 +236,8 @@ function WowPlayRows({
 
 /**
  * Steam's "Play from…" menu (`steamMenu` renders Steam's own) with its
- * "Play on this Steam Deck" row replaced by Battle.net and one row per WoW
- * client. Stream rows stay Steam's. Picking a row only selects it, as
+ * "Play on this Steam Deck" row replaced by Battle.net and a row each for
+ * Retail, Classic and Forever. Stream rows stay Steam's. Picking a row only selects it, as
  * Steam's rows do, and points Steam's Play back at this device.
  *
  * The menu itself is built once, from the launch state when the chevron

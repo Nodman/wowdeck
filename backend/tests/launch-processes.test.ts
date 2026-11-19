@@ -12,9 +12,9 @@ const runtime = steam + "/steamapps/common/SteamLinuxRuntime_4/_v2-entry-point";
 const proton = steam + "/compatibilitytools.d/GE-Proton/proton";
 const battle = prefix + "/drive_c/Program Files (x86)/Battle.net/Battle.net.exe";
 const reaper = steam + "/steamrt64/reaper";
-const target = { kind: "wow", id: "forever", name: "Forever", shortName: "Forever", gameType: "forever", launchable: true } as const;
+const target = { kind: "wow", id: "forever", name: "Forever", shortName: "Forever" } as const;
 const entry: LaunchEntry = {
-  appId: 123, clients: [target], target, targetDirectory: "/games/wow/_forever_", product: "WoWF",
+  appId: 123, clients: [target], target, targetFolders: [{ path: "/games/wow/_forever_", shortName: "Forever" }], product: "WoWF",
   prefixes: [prefix], libraries: [steam],
 };
 const launcher: LaunchProcess = {
@@ -46,7 +46,9 @@ test("other prefixes, an untrusted runtime path and a different install cannot a
   expect((await observe([launcher, foreign])).renderer).toBeNull();
   expect((await observe([{ ...launcher, argv: launcher.argv.map(arg => arg === runtime ? "/tmp/_v2-entry-point" : arg) }, renderer])).replay).toBeUndefined();
   const otherWow = { ...renderer, argv: ["Z:\\other\\_forever_\\Wow.exe"] };
-  expect(await observe([launcher, renderer, otherWow])).toMatchObject({ targetRunning: false, gameRunning: "running" });
+  expect(await observe([launcher, renderer, otherWow])).toMatchObject({ targetRunning: null, gameRunning: "running" });
+  const ownWow = { ...renderer, argv: ["Z:\\games\\wow\\_forever_\\Wow.exe"] };
+  expect(await observe([launcher, renderer, ownWow])).toMatchObject({ targetRunning: "/games/wow/_forever_" });
 });
 
 test("a Steam reaper for a different shortcut cannot replay into a shared prefix", async () => {

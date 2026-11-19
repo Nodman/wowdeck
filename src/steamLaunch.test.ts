@@ -9,8 +9,6 @@ const target = {
   shortName: "Forever",
   kind: "wow",
   id: "forever",
-  gameType: "forever",
-  launchable: true,
 } as const;
 const ready: LaunchState = {
   target,
@@ -132,7 +130,6 @@ test("the selected installation is sent to the linked game's launch API while Wo
     id: "retail",
     name: "Retail",
     shortName: "Retail",
-    gameType: "retail",
   } as const;
   const fake = createFakeEngine({
     "launch.state": { state: { ...ready, gameRunning: "running", clients: [target, retail] } },
@@ -144,17 +141,17 @@ test("the selected installation is sent to the linked game's launch API while Wo
   expect(fake.paramsOf("launch.select")).toEqual([{ appId: 42, targetId: "retail" }]);
 });
 
-test("the launch control shows the selected client's specific limitation", () => {
-  expect(
-    launchControl({
-      ...ready,
-      target: {
-        ...target,
-        launchable: false,
-        reason: "Battle.net starts whichever Classic version you last selected there",
-      },
-    })?.reason,
-  ).toBe("Battle.net starts whichever Classic version you last selected there");
+test("Classic that Battle.net didn't start points the player at Battle.net's own Play", () => {
+  const events = createEventRouter();
+  const fake = createFakeEngine();
+  fake.subscribe(events.dispatch);
+  const toasts: [string, string][] = [];
+  createLaunchActions(fake.rpc, events, (title, body) => toasts.push([title, body]));
+  fake.emit({
+    event: "launch.completed",
+    params: { appId: 42, clientName: "Classic", outcome: "not-started" },
+  });
+  expect(toasts).toEqual([["Battle.net didn't start Classic", "Press Play in Battle.net"]]);
 });
 
 test("Steam Play suppresses RunGame both before and during the engine request", async () => {
@@ -188,7 +185,6 @@ describe("Steam's Play button on a linked page", () => {
     id: "battlenet",
     name: "Battle.net",
     shortName: "Battle.net",
-    launchable: true,
   } as const;
   const local = { remote: false, steamEntryRunning: false };
 

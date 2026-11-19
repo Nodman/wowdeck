@@ -51,24 +51,18 @@ const battlenet: LaunchClient = {
   id: "battlenet",
   name: "Battle.net",
   shortName: "Battle.net",
-  launchable: true,
 };
 const forever: LaunchClient = {
   kind: "wow",
   id: "forever",
-  gameType: "forever",
   name: "World of Warcraft: Forever",
   shortName: "Forever",
-  launchable: true,
 };
 const classic: LaunchClient = {
   kind: "wow",
   id: "classic",
-  gameType: "classic",
   name: "World of Warcraft Classic",
   shortName: "Classic",
-  launchable: false,
-  reason: "Start this client in Battle.net",
 };
 const state: LaunchState = {
   clients: [battlenet, forever, classic],
@@ -78,7 +72,7 @@ const state: LaunchState = {
   busy: false,
 };
 
-test("picking a client row selects it and switches Steam back to this Deck; a disabled row can't be picked", async () => {
+test("picking a row selects it and switches Steam back to this Deck, leaving My Addons alone", async () => {
   const dom = new JSDOM('<div id="root"></div>');
   const env = globalThis as { window?: unknown; IS_REACT_ACT_ENVIRONMENT?: boolean };
   const oldWindow = env.window;
@@ -121,7 +115,6 @@ test("picking a client row selects it and switches Steam back to this Deck; a di
     expect(rows()).toEqual([
       "Battle.net",
       "World of Warcraft: Forever",
-      // Greyed out, without help text.
       "World of Warcraft Classic",
       "Stream from Kaptan",
     ]);
@@ -130,12 +123,15 @@ test("picking a client row selects it and switches Steam back to this Deck; a di
     expect(row("World of Warcraft: Forever")?.querySelector("svg")).toBeNull();
 
     await act(async () => row("World of Warcraft Classic")?.click());
-    expect(fake.paramsOf("launch.select")).toEqual([]);
-    expect(streaming).toEqual([]);
+    expect(streaming).toEqual([[42, "0"]]);
+    expect(fake.paramsOf("launch.select")).toEqual([{ appId: 42, targetId: "classic" }]);
 
     await act(async () => row("World of Warcraft: Forever")?.click());
-    expect(streaming).toEqual([[42, "0"]]);
-    expect(fake.paramsOf("launch.select")).toEqual([{ appId: 42, targetId: "forever" }]);
+    expect(fake.paramsOf("launch.select")).toEqual([
+      { appId: 42, targetId: "classic" },
+      { appId: 42, targetId: "forever" },
+    ]);
+    expect(fake.paramsOf("installations.select")).toEqual([]);
   } finally {
     await act(async () => root.unmount());
     disconnect();

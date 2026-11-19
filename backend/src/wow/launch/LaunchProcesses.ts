@@ -104,7 +104,7 @@ async function replayFor(
 export async function observeLaunch(
   entry: LaunchEntry, processes: LaunchProcess[], steamHomes: string[], home: string, resolve: ResolvePath,
 ): Promise<Observation> {
-  const observed: Observation = { entryRunning: false, renderer: null, gameRunning: "not_running", targetRunning: false };
+  const observed: Observation = { entryRunning: false, renderer: null, gameRunning: "not_running", targetRunning: null };
   const sessions = new Map<string, { renderers: number[]; reapers: LaunchProcess[] }>();
   for (const process of processes) {
     const first = process.argv[0] ?? "";
@@ -122,7 +122,8 @@ export async function observeLaunch(
     if (game) {
       const exe = winePath(first, prefix);
       const actual = exe ? await resolve(exe) : undefined;
-      if (actual && entry.targetDirectory && dirname(actual) === entry.targetDirectory) observed.targetRunning = true;
+      const folder = actual && entry.targetFolders?.find(({ path }) => path === dirname(actual));
+      if (folder) observed.targetRunning = folder.path;
       continue;
     }
 
@@ -248,7 +249,7 @@ export function localLaunchWorld(home: string, getSteamHomes: () => string[]): L
         readProcesses(),
         Promise.all(getSteamHomes().map(resolveLocal)),
       ]);
-      if (!processes) return { entryRunning: false, renderer: null, targetRunning: false, gameRunning: "unknown" };
+      if (!processes) return { entryRunning: false, renderer: null, targetRunning: null, gameRunning: "unknown" };
       return observeLaunch(entry, processes, homes.filter((path) => path !== undefined), home, resolveLocal);
     },
     async ask(replay) {

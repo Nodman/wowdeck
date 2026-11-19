@@ -1,78 +1,105 @@
 # Steam game page launch targets
 
 The chevron opens the client picker even while WoW is running. Up and Down
-move through the choices. A selects an available client. B closes the picker.
+move through the choices. A selects one. B closes the picker.
 Both actions return focus to the chevron. Steam Play keeps initial focus.
 The launch button shows the selected client and its executable icon. WoWDeck
 uses its own glyph when the icon is missing, unreadable or fails to render.
 
-The picker lists Battle.net first, then the linked WoW clients in client table
-order. Battle.net is selected until the player picks a client. Starting it
+The picker lists Battle.net first, then up to three WoW rows: Retail,
+Classic and Forever ([ADR 0017](adr/0017-one-classic-launch-row.md)).
+Battle.net is selected until the player picks another row. Starting it
 starts the Steam entry and sends Battle.net no launch command, as Steam's own
 Play does. Its icon comes from the launcher executable.
 
-A choice is saved per Steam shortcut. Picking a client also sets the active
-installation in My Addons. Picking Battle.net leaves it unchanged. Later
-changes in My Addons leave the saved launch target in place. Choices saved by
-earlier builds keep working.
-An attempt already in progress keeps its original target. The picker uses
-installation links for this app ID and requires a single canonical WoW root.
-Multiple linked roots or a client symlink escaping its registered root hide
-the control. A client linked only to a different shortcut never becomes a choice.
+| Row | Shown when Battle.net lists | Command | Icon |
+| --- | --- | --- | --- |
+| Battle.net | Always | None: Steam's own start | The launcher's |
+| Retail | `wow` | `launch WoW` | `_retail_` |
+| Classic | `wow_classic`, `wow_classic_era` or `wow_classic_anniversary` | `launch WoWC` | `_classic_`, else `_classic_era_`, else `_anniversary_` |
+| Forever | `wowf` | `launch WoWF` | `_forever_` |
+
+The Classic row reads "World of Warcraft Classic" in the menu and "Classic"
+on the Play button, whichever versions are installed. PTRs, betas, Titan
+Reforged and China Beta get no row. Battle.net's own Play starts them.
+
+A Classic launch counts as started when Mists of Pandaria Classic, Classic
+Era or Anniversary starts in the prefix. The completion names the version
+that ran. When Battle.net takes the request but no client starts within the
+launch window, WoWDeck shows "Battle.net didn't start Classic. Press Play in
+Battle.net." Retail and Forever get the same notice with their own names.
+Battle.net stays open.
+
+A choice is saved per Steam shortcut. Picking a row never changes My Addons'
+active installation, and changes in My Addons leave the saved launch target
+in place. Choices saved by earlier builds keep working: a saved Mists,
+Classic Era or Anniversary installation selects Classic, and a saved
+version that has no row any more falls back to Battle.net.
+An attempt already in progress keeps its original target.
+
+The picker lists only the WoW clients Battle.net has installed in the
+shortcut's prefix. It reads Battle.net's own install list,
+`drive_c/ProgramData/Battle.net/Agent/product.db`, and matches each entry's
+folder to a detected installation. A WoW folder Battle.net doesn't list is
+left out, even when WoWDeck detected it. That covers leftover folders,
+copies and other prefixes' installs. Without a readable list, or with no matching
+client, the page keeps Steam's plain Play button. The shortcut still needs a
+WoWDeck link to an installation.
+
+The prefix is the one Proton uses: `<library>/steamapps/compatdata/<app id>/pfx`,
+or `<path>/pfx` when the launch options set `STEAM_COMPAT_DATA_PATH=<path>`.
+Some installers also write `WINEPREFIX=` into a Battle.net shortcut's launch
+options. Proton replaces WINEPREFIX with its own prefix, so WoWDeck ignores
+it there too. A shortcut run through a native wrapper such as `umu-run` keeps
+its WINEPREFIX for installation discovery.
 
 ## Battle.net commands
 
-Battle.net starts a game with `--exec="launch <code>"`, where the code names
-a game family, not a version. Only three WoW codes start a client:
+Battle.net starts a game with `--exec="launch <code>"`. WoW has three codes:
 
 | Client | Command | In WoWDeck |
 | --- | --- | --- |
-| Retail | `launch WoW` | Available |
-| Forever | `launch WoWF` | Available |
-| Classic | `launch WoWC` | Disabled. Battle.net starts whichever Classic version the player last selected |
-| Classic Era, Anniversary, Titan Reforged, Retail PTR, Retail XPTR, Retail Beta, Classic PTR, Classic Era PTR, Forever Beta | `launch_uid <uid>` only | Disabled. This selects the version in Battle.net and doesn't start it |
-| China Beta | None known | Disabled |
+| Retail | `launch WoW` | Retail row |
+| Mists of Pandaria Classic, Classic Era, Anniversary | `launch WoWC` | Classic row |
+| Forever | `launch WoWF` | Forever row |
+| Titan Reforged, Retail PTR, Retail XPTR, Retail Beta, Classic PTR, Classic Era PTR, Forever Beta | `launch_uid <uid>` only. This selects the version in Battle.net and doesn't start it | No row |
+| China Beta | None known | No row |
 
-Each client's code or version UID lives in the client table,
-`backend/src/wow/clients.ts`. The UIDs are the ones Battle.net itself lists
-(its log on the Deck names `wow_ptr`, `wow_ptr_x`, `wow_classic_ptr`,
-`wow_classic_era_ptr`, `wow_classic_beta`, `wow_classic_era`,
-`wow_classic_anniversary` and `wowf`). `wow_beta` comes from the
-[wowdev product table](https://wowdev.wiki/Agent), and `wow_classic_titan`
-from Skip Game Launcher's [UID catalog](https://github.com/voc0der/Skip-Game-Launcher/blob/master/games.json).
+Each client's code and row live in the client table,
+`backend/src/wow/clients.ts`. The [launch code report](hardware/2026-11-19-battle-net-launch-codes/README.md)
+has every code tried, on the Deck and on a Linux PC, with the log lines.
+In short:
 
-Nothing external starts a version outright. On the Deck (2026-11-18), with
-Battle.net signed in:
+- With Mists installed, `launch WoWC` started Mists of Pandaria Classic
+  (`wow_classic`) every time. Selecting Classic Era or Anniversary first
+  with `launch_uid` didn't change that. Without Mists installed (the
+  Deck), `launch WoWC` switched Battle.net to Classic Era and started
+  nothing. WoWDeck still offers one Classic row on `WoWC` and covers a
+  failed start with its notice ([ADR 0017](adr/0017-one-classic-launch-row.md)).
+- Battle.net's own Play button starts the selected version, Classic Era
+  included. No `--exec` command does the same from outside.
+- `launch_uid <uid>` only selects a version. A following `launch WoW`,
+  `launch WoWC` or `launch WoWF` replaces the selection with that code's
+  own client.
+- Battle.net looks up any other `launch` code as a game family and finds
+  none. That includes `WoWB`, `WoWT`, `WoWE`, `WoWPTR` (it selects Retail),
+  the `WoWX` codes from Battle.net's product catalogue, lower-case codes
+  and version UIDs.
+- Battle.net 2.53.8 doesn't recognise `wow_classic_titan` in the EU
+  region.
 
-- `launch wow_classic_era`, `launch wow_classic_beta` and `launch WoWB` did
-  nothing. Battle.net looked them up as game families and found none.
-- `launch_uid` selected the version. A following `launch WoW` or
-  `launch WoWF` replaced that selection and started the family's own
-  client.
-- Battle.net starts a client as `<client>.exe -launcherlogin -uid <uid>` and
-  hands it a launch token. Running the client with the same arguments
-  doesn't sign it in; it exits on its own.
+Battle.net 2.53.8's own command list, read from `battle.net.dll`, has no
+other way in. `--exec` takes `launch`, `launch_uid`, `launch_register`,
+`focus`, `handle_uri`, `install`, `repair`, `modify`, `login`, `logout` and
+a few more. Only `launch` starts a game (`LaunchGameByProduct`). A
+`battlenet://` link can also start one (`LaunchGameByUri`), but only with a
+token, account id and timestamp that Blizzard's website signs for the
+signed-in account. Without them it only focuses a game. WoWDeck can't
+build those links. Battle.net starts a client as
+`<client>.exe -launcherlogin -uid <uid>` and hands it a launch token.
+Running the client with the same arguments doesn't sign it in.
 
-Battle.net 2.53.8's own command list, read from `battle.net.dll` on the
-Deck (2026-11-19), has no other way in. `--exec` takes `launch`,
-`launch_uid`, `launch_register`, `focus`, `handle_uri`, `install`,
-`repair`, `modify`, `login`, `logout` and a few more. Only `launch` starts
-a game (`LaunchGameByProduct`). A `battlenet://` link can also start one
-(`LaunchGameByUri`), but only with a token, account id and timestamp
-that Blizzard's website signs for the signed-in account. Without them it
-only focuses a game. WoWDeck can't build those links.
-
-`launch WoWC` doesn't start a version that `launch_uid` selected either.
-On the Deck, `launch_uid wow_classic_era` switched Battle.net to Classic
-Era, and two `launch WoWC` commands after it started nothing. A
-`launch WoWF` sent the same way started Forever at once. Battle.net
-showed an "Unsupported" badge on Classic Era, and its meaning is not
-known. A Classic version without that badge, such as Mists of Pandaria
-Classic, is not installed on the Deck, so `WoWC` after `launch_uid`
-stays untested there.
-
-The [Steam launch report](hardware/2026-11-18-steam-launch-integration/README.md)
-has the log lines. See also Skip Game Launcher's
+See also Skip Game Launcher's
 [version command notes](https://github.com/voc0der/Skip-Game-Launcher/blob/master/CONTRIBUTING.md#battlenet-game-versions).
 
 ## Device checks
@@ -85,6 +112,7 @@ combined DroidDeck run follows integration of #282 and #283.
 
 | Step | Expected |
 | --- | --- |
-| Open the chevron while WoW runs. Check the list and press B. | Only installations linked to the entry's WoW root appear. Clients WoWDeck can't start are greyed out. B returns focus to the chevron. |
-| Reopen the picker and select the other supported client. Check My Addons and then reopen the game page. | My Addons shows the chosen installation. The game page shows the same client's name and icon or WoWDeck glyph. |
+| Open the chevron while WoW runs. Check the list and press B. | Battle.net, then Retail, Classic and Forever, each only when Battle.net has it installed in the entry's prefix. No other version has a row. B returns focus to the chevron. |
+| Reopen the picker and select another row. Check My Addons and then reopen the game page. | My Addons keeps its installation. The game page shows the chosen row's name and icon or WoWDeck glyph. |
+| With only Classic Era installed, select Classic and press Play. | Classic Era starts, or WoWDeck says Battle.net didn't start Classic and Battle.net stays open. |
 | Stop the existing client. Select the client in the Play button's menu and press Play with Battle.net running, then repeat with the Steam entry stopped. | The chosen client starts in the linked shortcut's prefix. |

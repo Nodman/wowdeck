@@ -7,11 +7,11 @@
  * Commit: 89a0981ad00290d40368bf2a9f60209a40198502
  * Modified: yes — upstream's folder constants, folder switch and game type
  *   switch folded into one record per client, with the plugin's names,
- *   wire game type and Battle.net launch kind beside them.
+ *   wire game type and Battle.net launch code beside them.
  * See docs/wowup-provenance.md.
  */
 
-import type { GameType } from "../api/contracts";
+import { CLASSIC_LAUNCH_TARGET, type GameType } from "../api/contracts";
 import { WowClientType } from "./types";
 
 /** The WowUp Hub's game type, which groups clients that share addon lists. */
@@ -26,15 +26,18 @@ export enum WowGameType {
 }
 
 /**
- * How Battle.net can be asked for a client. A product code starts a game;
- * `exact` is false when Battle.net picks which client the code starts
- * (Classic's code follows the last Classic selection). A version UID only
- * selects the version in Battle.net. Sources: docs/steam-launch-targets.md.
+ * How WoWDeck asks Battle.net for a client: `--exec="launch <code>"`.
+ * `WoW` starts Retail, `WoWF` Forever, and `WoWC` the Classic version
+ * Battle.net has active, so Mists of Pandaria Classic, Classic Era and
+ * Anniversary share the one Classic row. Sources: docs/steam-launch-targets.md.
  */
-export type BattleNetLaunch =
-  | { kind: "product"; code: string; exact: boolean }
-  | { kind: "version"; uid: string }
-  | { kind: "none" };
+export interface BattleNetLaunch {
+  code: string;
+  /** Set on clients that share one Play menu row: that row's target id. */
+  row?: typeof CLASSIC_LAUNCH_TARGET;
+}
+
+const CLASSIC_ROW: BattleNetLaunch = { code: "WoWC", row: CLASSIC_LAUNCH_TARGET };
 
 export interface WowClient {
   clientType: WowClientType;
@@ -58,14 +61,13 @@ export interface WowClient {
    * installation still carrying it is refreshed to the new short name.
    */
   formerNames: readonly string[];
-  launch: BattleNetLaunch;
+  /** Absent: the Play menu has no row for it; Battle.net's own Play starts it. */
+  launch?: BattleNetLaunch;
 }
-
-const none: BattleNetLaunch = { kind: "none" };
 
 /**
  * One record per WoW client: the single source of truth for folders,
- * names, game types and launch kinds. Add a client here and nowhere else.
+ * names, game types and Play menu rows. Add a client here and nowhere else.
  * The order is the order clients are listed in.
  *
  * `ClassicBeta` -> "Forever Beta" matches WowUp's rename in v2.24.1
@@ -80,7 +82,7 @@ export const WOW_CLIENTS: readonly WowClient[] = [
     shortName: "Retail",
     fullName: "World of Warcraft",
     formerNames: [],
-    launch: { kind: "product", code: "WoW", exact: true },
+    launch: { code: "WoW" },
   },
   {
     clientType: WowClientType.Classic,
@@ -90,7 +92,7 @@ export const WOW_CLIENTS: readonly WowClient[] = [
     shortName: "Classic",
     fullName: "Mists of Pandaria Classic",
     formerNames: [],
-    launch: { kind: "product", code: "WoWC", exact: false },
+    launch: CLASSIC_ROW,
   },
   {
     clientType: WowClientType.ClassicEra,
@@ -100,7 +102,7 @@ export const WOW_CLIENTS: readonly WowClient[] = [
     shortName: "Classic Era",
     fullName: "World of Warcraft Classic",
     formerNames: [],
-    launch: { kind: "version", uid: "wow_classic_era" },
+    launch: CLASSIC_ROW,
   },
   {
     clientType: WowClientType.RetailPtr,
@@ -110,7 +112,6 @@ export const WOW_CLIENTS: readonly WowClient[] = [
     shortName: "Retail PTR",
     fullName: "PTR (Midnight)",
     formerNames: [],
-    launch: { kind: "version", uid: "wow_ptr" },
   },
   {
     clientType: WowClientType.ClassicPtr,
@@ -120,7 +121,6 @@ export const WOW_CLIENTS: readonly WowClient[] = [
     shortName: "Classic PTR",
     fullName: "PTR (MoP Classic)",
     formerNames: [],
-    launch: { kind: "version", uid: "wow_classic_ptr" },
   },
   {
     clientType: WowClientType.ClassicEraPtr,
@@ -130,7 +130,6 @@ export const WOW_CLIENTS: readonly WowClient[] = [
     shortName: "Classic Era PTR",
     fullName: "PTR (Classic Era)",
     formerNames: [],
-    launch: { kind: "version", uid: "wow_classic_era_ptr" },
   },
   {
     clientType: WowClientType.Beta,
@@ -140,7 +139,6 @@ export const WOW_CLIENTS: readonly WowClient[] = [
     shortName: "Retail Beta",
     fullName: "The War Within Beta",
     formerNames: [],
-    launch: { kind: "version", uid: "wow_beta" },
   },
   {
     clientType: WowClientType.ClassicBeta,
@@ -150,7 +148,6 @@ export const WOW_CLIENTS: readonly WowClient[] = [
     shortName: "Forever Beta",
     fullName: "World of Warcraft: Forever Beta",
     formerNames: ["Forever", "World of Warcraft: Forever"],
-    launch: { kind: "version", uid: "wow_classic_beta" },
   },
   {
     clientType: WowClientType.RetailXPtr,
@@ -160,7 +157,6 @@ export const WOW_CLIENTS: readonly WowClient[] = [
     shortName: "Retail XPTR",
     fullName: "PTR (TWW 11.2.7)",
     formerNames: [],
-    launch: { kind: "version", uid: "wow_ptr_x" },
   },
   {
     clientType: WowClientType.Anniversary,
@@ -170,7 +166,7 @@ export const WOW_CLIENTS: readonly WowClient[] = [
     shortName: "Anniversary",
     fullName: "Burning Crusade Anniversary",
     formerNames: [],
-    launch: { kind: "version", uid: "wow_classic_anniversary" },
+    launch: CLASSIC_ROW,
   },
   {
     clientType: WowClientType.Forever,
@@ -180,7 +176,7 @@ export const WOW_CLIENTS: readonly WowClient[] = [
     shortName: "Forever",
     fullName: "World of Warcraft: Forever",
     formerNames: [],
-    launch: { kind: "product", code: "WoWF", exact: true },
+    launch: { code: "WoWF" },
   },
   {
     clientType: WowClientType.ClassicTitan,
@@ -190,7 +186,6 @@ export const WOW_CLIENTS: readonly WowClient[] = [
     shortName: "Titan Reforged",
     fullName: "World of Warcraft Titan Reforged Classic",
     formerNames: [],
-    launch: { kind: "version", uid: "wow_classic_titan" },
   },
   {
     clientType: WowClientType.ClassicCnBeta,
@@ -201,7 +196,6 @@ export const WOW_CLIENTS: readonly WowClient[] = [
     // WowUp has no full name for it.
     fullName: "China Beta",
     formerNames: [],
-    launch: none,
   },
 ];
 

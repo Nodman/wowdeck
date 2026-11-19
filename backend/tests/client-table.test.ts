@@ -18,7 +18,6 @@ describe("client table", () => {
       expect(client!.shortName).not.toBe("");
       expect(client!.fullName).not.toBe("");
       expect(Array.isArray(client!.formerNames)).toBe(true);
-      expect(["product", "version", "none"]).toContain(client!.launch.kind);
     }
     expect(WOW_CLIENTS).toHaveLength(clientTypes.length);
     expect(wowClient(WowClientType.None)).toBeUndefined();
@@ -47,53 +46,15 @@ describe("client table", () => {
     expect(wowClientForFolder("hasOwnProperty")).toBeUndefined();
   });
 
-  test("Battle.net launch kinds follow docs/steam-launch-targets.md", () => {
-    expect(wowClient(WowClientType.Retail)!.launch).toEqual({
-      kind: "product",
-      code: "WoW",
-      exact: true,
-    });
-    expect(wowClient(WowClientType.Forever)!.launch).toEqual({
-      kind: "product",
-      code: "WoWF",
-      exact: true,
-    });
-    expect(wowClient(WowClientType.Classic)!.launch).toEqual({
-      kind: "product",
-      code: "WoWC",
-      exact: false,
-    });
-    expect(wowClient(WowClientType.ClassicEra)!.launch).toEqual({
-      kind: "version",
-      uid: "wow_classic_era",
-    });
-    expect(wowClient(WowClientType.Anniversary)!.launch).toEqual({
-      kind: "version",
-      uid: "wow_classic_anniversary",
-    });
-    expect(wowClient(WowClientType.ClassicTitan)!.launch).toEqual({
-      kind: "version",
-      uid: "wow_classic_titan",
-    });
-    // Battle.net's own UIDs, as its log lists them (Deck, 2026-11-18).
-    expect(wowClient(WowClientType.RetailPtr)!.launch).toEqual({ kind: "version", uid: "wow_ptr" });
-    expect(wowClient(WowClientType.RetailXPtr)!.launch).toEqual({
-      kind: "version",
-      uid: "wow_ptr_x",
-    });
-    expect(wowClient(WowClientType.Beta)!.launch).toEqual({ kind: "version", uid: "wow_beta" });
-    expect(wowClient(WowClientType.ClassicPtr)!.launch).toEqual({
-      kind: "version",
-      uid: "wow_classic_ptr",
-    });
-    expect(wowClient(WowClientType.ClassicEraPtr)!.launch).toEqual({
-      kind: "version",
-      uid: "wow_classic_era_ptr",
-    });
-    expect(wowClient(WowClientType.ClassicBeta)!.launch).toEqual({
-      kind: "version",
-      uid: "wow_classic_beta",
-    });
-    expect(wowClient(WowClientType.ClassicCnBeta)!.launch).toEqual({ kind: "none" });
+  test("Play menu rows follow docs/steam-launch-targets.md", () => {
+    expect(wowClient(WowClientType.Retail)!.launch).toEqual({ code: "WoW" });
+    expect(wowClient(WowClientType.Forever)!.launch).toEqual({ code: "WoWF" });
+    // Mists, Classic Era and Anniversary share one Classic row: WoWC starts
+    // the Classic version Battle.net has active.
+    for (const type of [WowClientType.Classic, WowClientType.ClassicEra, WowClientType.Anniversary]) {
+      expect(wowClient(type)!.launch).toEqual({ code: "WoWC", row: "classic" });
+    }
+    const rows = WOW_CLIENTS.filter((client) => client.launch).map((client) => client.folder);
+    expect(rows).toEqual(["_retail_", "_classic_", "_classic_era_", "_anniversary_", "_forever_"]);
   });
 });

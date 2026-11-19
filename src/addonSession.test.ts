@@ -186,28 +186,6 @@ describe("addon session: installations", () => {
     expect(searchDestination.get()).toMatchObject({ query: "", results: null });
   });
 
-  test("a Steam launch target switch reloads My Addons for the same installation", async () => {
-    const { session, fake } = await harness({
-      "launch.select": {
-        target: {
-          kind: "wow",
-          id: "i2",
-          name: "Retail",
-          shortName: "Retail",
-          gameType: "retail",
-          launchable: true,
-        },
-      },
-      "addons.list": { addons: [addon({ id: "retail-addon" })] },
-    });
-    await session.selectInstallation("i2", async (installationId) => {
-      await fake.rpc("launch.select", { appId: 42, targetId: installationId });
-    });
-    expect(session.get().selectedId).toBe("i2");
-    expect(session.get().addons.map((entry) => entry.id)).toEqual(["retail-addon"]);
-    expect(fake.paramsOf("addons.list")).toEqual([{ installationId: "i2" }]);
-  });
-
   test("a failed switch keeps the list and re-reads the installations", async () => {
     let selectFails = false;
     const { session, log } = await harness({

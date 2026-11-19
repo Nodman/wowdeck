@@ -5,8 +5,12 @@ export interface LaunchEntry {
   appId: number;
   clients: LaunchClient[];
   target: LaunchClient;
-  /** The target client's flavor folder; absent for Battle.net. */
-  targetDirectory?: string;
+  /**
+   * The target's client folders, canonical, with each client's short name:
+   * one for Retail or Forever, one per installed version for Classic.
+   * Absent for Battle.net.
+   */
+  targetFolders?: Array<{ path: string; shortName: string }>;
   /** The product code Battle.net is asked to launch; absent for Battle.net. */
   product?: string;
   prefixes: string[];
@@ -22,7 +26,8 @@ export interface Observation {
   entryRunning: boolean;
   renderer: number | null;
   gameRunning: GameRunning;
-  targetRunning: boolean;
+  /** The target folder whose client runs in the entry's prefix, if any. */
+  targetRunning: string | null;
   replay?: Replay;
 }
 
@@ -82,7 +87,7 @@ export class LaunchService {
     const entry = validAppId(appId) && typeof targetId === "string"
       ? await this.resolve(appId, targetId)
       : null;
-    if (!entry || entry.target.id !== targetId || !entry.target.launchable) {
+    if (!entry || entry.target.id !== targetId) {
       throw new ValidationError("This client can't be launched from this Steam game page");
     }
     save(entry.target);
@@ -105,7 +110,7 @@ export class LaunchService {
     if (!entry) return { state: null };
     const observed = await this.world.observe(entry);
     const alreadyStarted = observed.entryRunning || steamEntryRunning;
-    if (this.active || !entry.target.launchable || observed.gameRunning !== "not_running" ||
+    if (this.active || observed.gameRunning !== "not_running" ||
         (!alreadyStarted && !canStartSteam) ||
         // A running entry already is Battle.net open: nothing to start.
         (alreadyStarted && entry.target.kind === "battlenet")) {
@@ -135,19 +140,23 @@ export class LaunchService {
 
   private async run(attempt: LaunchAttempt, initial: Observation): Promise<void> {
     const { entry } = attempt;
-    let outcome: LaunchCompletion["outcome"] = "ask-failed";
+    let result: { outcome: LaunchCompletion["outcome"]; started?: string } = { outcome: "ask-failed" };
     try {
-      outcome = await this.attempt(attempt, initial);
+      result = await this.attempt(attempt, initial);
     } catch {
       // Process and spawn errors can contain environment, paths and argv.
       console.error(JSON.stringify({ component: "launch", event: "attempt-failed" }));
     } finally {
       this.active = null;
-      this.completed({ appId: entry.appId, clientName: entry.target.shortName, outcome });
+      // Classic names the version that started, e.g. "Classic Era".
+      const started = entry.targetFolders?.find(({ path }) => path === result.started);
+      this.completed({ appId: entry.appId, clientName: started?.shortName ?? entry.target.shortName, outcome: result.outcome });
     }
   }
 
-  private async attempt(attempt: LaunchAttempt, observed: Observation): Promise<LaunchCompletion["outcome"]> {
+  private async attempt(
+    attempt: LaunchAttempt, observed: Observation,
+  ): Promise<{ outcome: LaunchCompletion["outcome"]; started?: string }> {
     const started = this.world.now();
     let lastAsk = started;
     let renderer = observed.renderer;
@@ -160,13 +169,19 @@ export class LaunchService {
 
     for (;;) {
       const now = this.world.now();
-      if (observed.targetRunning || (battleNet && observed.entryRunning)) return "confirmed";
-      if (observed.gameRunning === "running") return "unconfirmed";
+      if (observed.targetRunning) return { outcome: "confirmed", started: observed.targetRunning };
+      if (battleNet && observed.entryRunning) return { outcome: "confirmed" };
+      if (observed.gameRunning === "running") return { outcome: "unconfirmed" };
       entrySeen ||= observed.entryRunning;
-      if (!asks && attempt.steamRefused) return "steam-refused";
-      if (now - started >= WINDOW || (entrySeen && !observed.entryRunning)) {
-        if (!asks) return "never-ready";
-        return failedAsks === asks ? "ask-failed" : "unconfirmed";
+      if (!asks && attempt.steamRefused) return { outcome: "steam-refused" };
+      const expired = now - started >= WINDOW;
+      if (expired || (entrySeen && !observed.entryRunning)) {
+        if (!asks) return { outcome: "never-ready" };
+        if (failedAsks === asks) return { outcome: "ask-failed" };
+        // Battle.net still open with no client after the whole window: the
+        // ask reached it and started nothing. Battle.net closing may be its
+        // "exit when a game launches" setting, so that stays unconfirmed.
+        return { outcome: expired && observed.entryRunning ? "not-started" : "unconfirmed" };
       }
 
       if (observed.renderer !== renderer) {
@@ -177,7 +192,7 @@ export class LaunchService {
           now - readySince >= READY_DELAY && now - lastAsk >= ASK_INTERVAL) {
         const replay = await this.world.ask(observed.replay);
         if (!replay) {
-          if (!asks) return "ask-failed";
+          if (!asks) return { outcome: "ask-failed" };
           failedAsks++;
         } else {
           void replay.startupFailed.then((failed) => {

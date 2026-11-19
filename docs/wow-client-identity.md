@@ -65,7 +65,7 @@ player-facing name before release.
 - **The client table**: `backend/src/wow/clients.ts` (`WOW_CLIENTS`) holds
   one record per client. A record has the flavor folder, wire `GameType`,
   WowUp Hub game type, short and full names, former names and Battle.net
-  launch kind. The lookups below read it. A new client is one new record.
+  product code. The lookups below read it. A new client is one new record.
 - **Folder → `WowClientType`**: `getClientTypeForFolderName` in
   `backend/src/wow/toc/toc.ts` matches the literal folder name against the
   table. Only filesystem detection uses it. It knows nothing about

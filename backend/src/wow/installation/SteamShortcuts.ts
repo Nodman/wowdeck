@@ -24,8 +24,15 @@ export function isWowShortcut(shortcut: SteamShortcut): boolean {
   return product ? /^wow/i.test(product) : isWowLaunchExecutable(basename(exe));
 }
 
-/** Literal leading environment assignments only; never interpret shell expressions. */
+/**
+ * Literal leading environment assignments only; never interpret shell expressions.
+ * Steam runs a Windows executable through Proton, which sets WINEPREFIX to
+ * `$STEAM_COMPAT_DATA_PATH/pfx` itself. Some installers still write a
+ * WINEPREFIX into such a shortcut's launch options; Proton ignores it, and
+ * so does this. A native wrapper such as umu-run does read it.
+ */
 export function shortcutPrefixOverrides(shortcut: SteamShortcut): string[] {
+  const proton = /\.exe$/i.test(shortcut.exe.trim().replace(/^"(.*)"$/, "$1"));
   const prefixes = new Set<string>();
   const tokens: string[] = [];
   let token = "";
@@ -66,7 +73,7 @@ export function shortcutPrefixOverrides(shortcut: SteamShortcut): string[] {
       const [, name, path] = match;
       if (!path || !isAbsolute(path) || /[$`]/.test(path)) continue;
       if (name === "STEAM_COMPAT_DATA_PATH") prefixes.add(join(path, "pfx"));
-      if (name === "WINEPREFIX") prefixes.add(path);
+      if (name === "WINEPREFIX" && !proton) prefixes.add(path);
     }
   }
   return [...prefixes];

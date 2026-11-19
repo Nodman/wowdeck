@@ -7,19 +7,19 @@ function fixture(appId = 123) {
   let next: (() => void) | undefined;
   const asks: number[] = [];
   const results: LaunchCompletion[] = [];
-  const observation = { entryRunning: true, renderer: null as number | null, gameRunning: "not_running" as const, targetRunning: false };
+  const observation = { entryRunning: true, renderer: null as number | null, gameRunning: "not_running" as const, targetRunning: null as string | null };
   const world: LaunchWorld = {
     now: () => now,
     wait: () => new Promise<void>((resolve) => { next = resolve; }),
     observe: async () => ({ ...observation }),
     ask: async () => { asks.push(now); return { startupFailed: Promise.resolve(false) }; },
   };
-  const client = { kind: "wow", id: "forever", name: "Forever", shortName: "Forever", gameType: "forever", launchable: true } as const;
+  const client = { kind: "wow", id: "forever", name: "Forever", shortName: "Forever" } as const;
   const entry: LaunchEntry = {
     appId,
     clients: [client],
     target: client,
-    targetDirectory: "/games/wow/_forever_",
+    targetFolders: [{ path: "/games/wow/_forever_", shortName: "Forever" }],
     product: "WoWF",
     prefixes: ["/steam/steamapps/compatdata/123/pfx"],
     libraries: ["/steam"],
@@ -35,7 +35,7 @@ function fixture(appId = 123) {
   };
 }
 
-test("a late renderer gets three asks at fifteen-second intervals inside the window", async () => {
+test("a late renderer gets three asks at fifteen-second intervals inside the window, then the client counts as not started", async () => {
   const f = fixture();
   expect((await f.service.start(123)).state?.busy).toBe(true);
   await f.at(100_000);
@@ -49,7 +49,7 @@ test("a late renderer gets three asks at fifteen-second intervals inside the win
   await f.at(149_999);
   expect(f.asks).toEqual([115_000, 130_000, 145_000]);
   await f.at(150_000);
-  expect(f.results.map((result) => result.outcome)).toEqual(["unconfirmed"]);
+  expect(f.results.map((result) => result.outcome)).toEqual(["not-started"]);
   expect((await f.service.state(123))?.busy).toBe(false);
 });
 
@@ -66,7 +66,7 @@ test("a duplicate press shares the attempt and stops asking when the target is s
   f.observation.renderer = 11;
   await Promise.all([f.service.start(123), f.service.start(123)]);
   await f.at(15_000);
-  f.observation.targetRunning = true;
+  f.observation.targetRunning = "/games/wow/_forever_";
   await f.at(16_000);
   expect(f.asks).toEqual([15_000]);
   expect(f.results.map((result) => result.outcome)).toEqual(["confirmed"]);
@@ -95,7 +95,7 @@ test("one press from rest grants Steam a single start and keeps the attempt aliv
   f.observation.renderer = 11;
   await f.at(6_000);
   await f.at(21_000);
-  f.observation.targetRunning = true;
+  f.observation.targetRunning = "/games/wow/_forever_";
   await f.at(22_000);
   expect(f.asks).toEqual([21_000]);
   expect(f.results.map((result) => result.outcome)).toEqual(["confirmed"]);
@@ -143,9 +143,8 @@ test("a stopped entry accepted by Steam reports one readiness failure if no sess
 });
 
 test("picking a linked target works during play and leaves a pending Steam start on its original target", async () => {
-  const forever = { kind: "wow", id: "forever", name: "Forever", shortName: "Forever", gameType: "forever", launchable: true } as const;
-  const retail = { kind: "wow", id: "retail", name: "Retail", shortName: "Retail", gameType: "retail", launchable: true } as const;
-  const classic = { kind: "wow", id: "classic", name: "Classic", shortName: "Classic", gameType: "classic", launchable: false } as const;
+  const forever = { kind: "wow", id: "forever", name: "Forever", shortName: "Forever" } as const;
+  const retail = { kind: "wow", id: "retail", name: "Retail", shortName: "Retail" } as const;
   let activeInstallation: string = forever.id;
   const f = fixture();
   let gameRunning: "running" | "not_running" = "running";
@@ -153,9 +152,9 @@ test("picking a linked target works during play and leaves a pending Steam start
   const results: LaunchCompletion[] = [];
   const service = new LaunchService(
     async (_, preferred) => {
-      const clients = [forever, retail, classic];
+      const clients = [forever, retail];
       const target = clients.find((client) => client.id === (preferred ?? activeInstallation)) ?? forever;
-      return { appId: 123, clients, target, targetDirectory: target.id, prefixes: [], libraries: [] };
+      return { appId: 123, clients, target, targetFolders: [{ path: target.id, shortName: target.shortName }], prefixes: [], libraries: [] };
     },
     {
       ...f.world,
@@ -168,7 +167,6 @@ test("picking a linked target works during play and leaves a pending Steam start
   );
   const save = (target: LaunchClient) => { activeInstallation = target.id; };
   await expect(service.select(123, "unlinked", save)).rejects.toThrow();
-  await expect(service.select(123, "classic", save)).rejects.toThrow();
   expect(activeInstallation).toBe("forever");
   expect(await service.select(123, "retail", save)).toEqual(retail);
   expect(activeInstallation).toBe("retail");
@@ -183,7 +181,7 @@ test("picking a linked target works during play and leaves a pending Steam start
   expect(await service.state(123)).toMatchObject({ target: forever, busy: true });
 
   f.observation.entryRunning = true;
-  f.observation.targetRunning = true;
+  f.observation.targetRunning = "retail";
   await f.at(1_000);
   expect(observedTargets.at(-1)).toBe("retail");
   expect(results).toEqual([{ appId: 123, clientName: "Retail", outcome: "confirmed" }]);
@@ -206,7 +204,7 @@ test("replay startup failures retry and produce one failure if none could reach 
 });
 
 test.each([Promise.resolve(false), new Promise<boolean>(() => {})])(
-  "a replay that may have reached Battle.net keeps later startup failures silent",
+  "a replay that may have reached Battle.net turns later startup failures into not started",
   async (startupFailed) => {
     const f = fixture();
     f.observation.renderer = 11;
@@ -218,6 +216,16 @@ test.each([Promise.resolve(false), new Promise<boolean>(() => {})])(
     await f.service.start(123);
     for (const time of [15_000, 30_000, 45_000, 150_000]) await f.at(time);
     expect(f.asks).toHaveLength(3);
-    expect(f.results.map((result) => result.outcome)).toEqual(["unconfirmed"]);
+    expect(f.results.map((result) => result.outcome)).toEqual(["not-started"]);
   },
 );
+
+test("Battle.net closing after an ask leaves the outcome unconfirmed", async () => {
+  const f = fixture();
+  f.observation.renderer = 11;
+  await f.service.start(123);
+  await f.at(15_000);
+  f.observation.entryRunning = false;
+  await f.at(16_000);
+  expect(f.results.map((result) => result.outcome)).toEqual(["unconfirmed"]);
+});

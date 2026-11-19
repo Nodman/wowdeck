@@ -29,8 +29,6 @@ export function launchControl(
   let reason = null;
   if (state.gameRunning === "running") reason = "WoW is already running";
   else if (state.busy) reason = "Starting…";
-  else if (!state.target.launchable)
-    reason = state.target.reason ?? "Start this client in Battle.net";
   else if (state.gameRunning === "unknown") reason = "Couldn't check if WoW is running";
   else if (!state.entryRunning && !steamEntryRunning && !canStartSteam)
     reason = "Steam launch is unavailable";
@@ -78,6 +76,9 @@ export function createLaunchActions(
       toast(`Couldn't launch ${clientName}`, "Battle.net didn’t become ready");
     } else if (outcome === "ask-failed") {
       toast(`Couldn't launch ${clientName}`, "WoWDeck couldn’t send the request to Battle.net");
+    } else if (outcome === "not-started") {
+      // Battle.net stays open, so its own Play is one press away.
+      toast(`Battle.net didn't start ${clientName}`, "Press Play in Battle.net");
     }
   });
   return {

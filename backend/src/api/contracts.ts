@@ -676,36 +676,42 @@ export interface TradeSkillMasterAuthStatus {
 export const BATTLE_NET_LAUNCH_TARGET = "battlenet";
 /** The Battle.net launcher's name in the menu row and on the Play button. */
 export const BATTLE_NET_NAME = "Battle.net";
+/**
+ * The Classic row's target id: one row for Mists of Pandaria Classic,
+ * Classic Era and Anniversary, which Battle.net starts with one code.
+ */
+export const CLASSIC_LAUNCH_TARGET = "classic";
 
 interface LaunchTargetFields {
-  /** What `launch.select` takes: an installation id, or BATTLE_NET_LAUNCH_TARGET. */
+  /**
+   * What `launch.select` takes: BATTLE_NET_LAUNCH_TARGET,
+   * CLASSIC_LAUNCH_TARGET, or a Retail or Forever installation id.
+   */
   id: string;
   /** The menu row's label: the client's full name, or BATTLE_NET_NAME. */
   name: string;
   /** The Play button's second line: the client's short name, or BATTLE_NET_NAME. */
   shortName: string;
-  launchable: boolean;
-  /** Player-facing explanation for a client that cannot be started precisely. */
-  reason?: string;
 }
 
 /** The Battle.net launcher itself: Steam's own launch, with no launch ask. */
 export interface BattleNetLaunchClient extends LaunchTargetFields {
   kind: "battlenet";
   id: typeof BATTLE_NET_LAUNCH_TARGET;
-  launchable: true;
 }
 
-/** A WoW client installed under the shortcut's WoW root. */
+/** A WoW row Battle.net can be asked to start: Retail, Classic or Forever. */
 export interface WowLaunchClient extends LaunchTargetFields {
   kind: "wow";
-  gameType: GameType;
 }
 
 export type LaunchClient = BattleNetLaunchClient | WowLaunchClient;
 
 export interface LaunchState {
-  /** Battle.net first, then the WoW clients in client table order. */
+  /**
+   * Battle.net first, then a row for each of Retail, Classic and Forever
+   * that Battle.net lists as installed in the shortcut's prefix.
+   */
   clients: LaunchClient[];
   /** The saved choice for this shortcut; Battle.net when none is saved. */
   target: LaunchClient;
@@ -716,8 +722,16 @@ export interface LaunchState {
 
 export type LaunchCompletion = {
   appId: number;
+  /**
+   * The short name of the client that started (Classic names its version,
+   * e.g. "Classic Era"), else the target's.
+   */
   clientName: string;
-  outcome: "confirmed" | "steam-refused" | "never-ready" | "ask-failed" | "unconfirmed";
+  /**
+   * `not-started`: Battle.net took the ask, yet no target client ran in the
+   * window; Battle.net stays open for its own Play.
+   */
+  outcome: "confirmed" | "steam-refused" | "never-ready" | "ask-failed" | "not-started" | "unconfirmed";
 };
 
 export interface MethodMap {
@@ -954,8 +968,8 @@ export interface MethodMap {
     result: { cancelled: boolean };
   };
   /**
-   * Saves the shortcut's launch target. A WoW client also becomes the
-   * active installation; Battle.net leaves the active installation alone.
+   * Saves the shortcut's launch target. It never changes My Addons'
+   * active installation.
    */
   "launch.select": {
     params: { appId: number; targetId: string };
@@ -1499,7 +1513,12 @@ export interface CurseForgeAuthStatus {
 
 export interface PluginSettings {
   selectedInstallationId: string | null;
-  /** Explicit launch target (installation id or BATTLE_NET_LAUNCH_TARGET) by Steam app ID. Engine-written. */
+  /**
+   * Explicit launch target by Steam app ID: a Retail or Forever installation
+   * id, CLASSIC_LAUNCH_TARGET or BATTLE_NET_LAUNCH_TARGET. A Mists, Classic
+   * Era or Anniversary installation id saved by an earlier picker reads as
+   * Classic. Engine-written.
+   */
   steamLaunchTargets: Record<string, string>;
   enabledProviders: string[] | null;
   customWowPaths: string[];
