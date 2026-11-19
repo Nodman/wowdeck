@@ -6,6 +6,10 @@ What's new in each version of WoWDeck Addon Manager. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Start WoW from its linked Steam game page, whether Battle.net is open or closed.
+
 ### Fixed
 
 - Sources no longer says a revoked TradeSkillMaster account stays signed in.

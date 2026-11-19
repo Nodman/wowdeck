@@ -118,3 +118,13 @@ keyboard`, and B returns input to the QAM.
 The device fixture and normal runner sequence were repeated against the fix;
 see `docs/regression-test-plan.md`, Q-1c. All temporary input observers and DOM
 fixtures were removed afterward.
+
+## 8.4d Launching a stopped Steam shortcut (2026-11-18)
+
+DEVICE, Steam CEF, virtual Xbox controller and SSH process observation.
+Pressing the plugin's Forever button called Steam's `Apps.RunGame` with
+the shortcut's decimal game ID string. The local app overview's
+`display_status` was 11 before launch (ReadyToLaunch) and 4 after launch
+(Running). The installed Steam client exposed
+`Apps.RegisterForGameActionShowError`. The successful run produced no
+launch error notice. See the [stopped-entry run](../hardware/2026-11-18-steam-stopped-entry/README.md).

@@ -672,6 +672,28 @@ export interface TradeSkillMasterAuthStatus {
   account: string | null;
 }
 
+export interface LaunchClient {
+  installationId: string;
+  gameType: GameType;
+  name: string;
+  launchable: boolean;
+  icon?: string;
+}
+
+export interface LaunchState {
+  clients: LaunchClient[];
+  target: LaunchClient;
+  entryRunning: boolean;
+  gameRunning: GameRunning;
+  busy: boolean;
+}
+
+export type LaunchCompletion = {
+  appId: number;
+  clientName: string;
+  outcome: "confirmed" | "steam-refused" | "never-ready" | "ask-failed" | "unconfirmed";
+};
+
 export interface MethodMap {
   /** Local removal and optional account cleanup have independent outcomes. */
   "tradeskillmaster.cleanupPreview": { params: { installationId: string }; result: TradeSkillMasterAccount["follows"] };
@@ -905,6 +927,19 @@ export interface MethodMap {
     params: Record<string, never>;
     result: { cancelled: boolean };
   };
+  "launch.state": {
+    params: { appId: number };
+    result: { state: LaunchState | null };
+  };
+  "launch.start": {
+    params: { appId: number; canStartSteam?: boolean; steamEntryRunning?: boolean };
+    result: { state: LaunchState | null; steamStart?: { gameId: string; attemptId: string } };
+  };
+  "launch.steamRefused": {
+    params: { attemptId: string };
+    result: void;
+  };
+
   "installations.list": {
     params: Record<string, never>;
     result: { installations: Installation[] };
@@ -1791,6 +1826,7 @@ export type UpdateAllProgress = {
 };
 
 export interface EventMap {
+  "launch.completed": LaunchCompletion;
   /** An automatic update ran and updated or failed something (WF-02). */
   "addons.autoUpdated": { result: AutoUpdateResult };
   "tradeskillmaster.changed": Record<string, never>;

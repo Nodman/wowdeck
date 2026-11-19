@@ -40,6 +40,7 @@ import "./wtfSession";
 import "./steamUpdates";
 import "./engineChanges";
 import { patchGamePage } from "./steamGamePage";
+import { steamLaunch } from "./steamLaunchActions";
 import { settingsStore } from "./settings";
 import { startHomeBadge } from "./steamDom/homeBadge";
 import { startPluginExitWatch, startQamVisibilityWatch } from "./steamDom/qamVisibility";
@@ -423,6 +424,7 @@ export default definePlugin(() => {
     onDismount() {
       stopTsmSignIn();
       unpatchGamePage();
+      steamLaunch.stopWatching();
       stopHomeBadge();
       stopQamVisibilityWatch();
       stopPluginExitWatch();

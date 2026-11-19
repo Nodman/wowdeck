@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { DialogButton, Focusable } from "@decky/ui";
 import { FaBoxOpen } from "react-icons/fa";
 import { engine } from "../engineLink";
@@ -23,7 +23,18 @@ const BUTTON = { minWidth: 0, width: "auto", padding: "8px 16px" } as const;
  * badge). Appearing shows the last counts at once and, when the option is
  * on, checks in the background at most every 15 minutes.
  */
-export function WowGameSection() {
+export function WowGameSection({
+  appId,
+  attachLaunch,
+}: {
+  appId: number;
+  attachLaunch: (anchor: HTMLElement, appId: number) => void;
+}) {
+  const anchor = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (anchor.current) attachLaunch(anchor.current, appId);
+  }, [appId, attachLaunch]);
+
   const { summary, checking } = useSyncExternalStore(steamUpdates.subscribe, steamUpdates.get);
   const [updating, setUpdating] = useState(false);
 
@@ -59,6 +70,7 @@ export function WowGameSection() {
 
   return (
     <div
+      ref={anchor}
       className="wowdeck-game-section"
       style={{
         display: "flex",

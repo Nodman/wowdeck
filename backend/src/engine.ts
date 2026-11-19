@@ -1,3 +1,7 @@
+import { InstallationDetector } from "./wow/installation/InstallationDetector";
+import { LaunchService } from "./wow/launch/LaunchService";
+import { localLaunchWorld } from "./wow/launch/LaunchProcesses";
+import { resolveLaunchEntry } from "./wow/launch/LaunchEntries";
 /**
  * The engine's assembly: every service the RPC handlers use, wired from one
  * configuration, and the startup that runs before the first request.
@@ -306,7 +310,14 @@ export function assembleEngine(config: EngineConfig): Engine & { start(): Promis
     };
   }
 
+  const steam = new InstallationDetector({ homeDir });
+  const launch = new LaunchService(
+    (appId) => resolveLaunchEntry(appId, installationService.listed(), steam),
+    localLaunchWorld(homeDir, () => steam.steamHomes()),
+    (completion) => server.emit("launch.completed", completion),
+  );
   const deps: HandlerDeps = {
+    launch,
     tsmAuth,
     tsmData,
     backendVersion,
