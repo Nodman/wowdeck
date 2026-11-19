@@ -484,3 +484,36 @@ End state: the entry was stopped with `SteamClient.Apps.TerminateApp`.
 No WoW or Battle.net process runs. `deck down` closed the tunnel. The
 tested build stays installed.
 
+
+## Turning WoWDeck's Play button off and on (L-27, #286)
+
+DEVICE 2026-11-20, Steam Deck, `feat/257-wow-launch` at `cfc00d8`
+(PR #284), frontend and engine. `deck up --engine` deployed it and
+reloaded WoWDeck 1.2.1. The engine pid went from 220431 to 221067. The installed
+`dist/index.js` (`bbf0b0f4…bd3915`) and `main.py` (`fbe53d74…`) match the
+local build. The engine (`010c8abe…0acf1e2c`) differs from the local
+`backend/out/wowdeck-x86_64` (`33258d3f…`), as the deploy patches the
+binary with patchelf. The run used the linked Battle.net shortcut
+(`4221385996`) and its existing clients; it installed nothing.
+
+To count the plugin's launch calls, the runner wrapped
+`WebSocket.prototype.send` in SharedJSContext, where Decky's frontend
+talks to `main.py`. The wrapper recorded the time and method of each
+message that named a `launch.` method. The runner removed it at the end
+of the run, and `window.__l27` read `undefined` afterwards.
+
+| Row | Result | DEVICE evidence |
+| --- | --- | --- |
+| L-27 Play button off and on | Passed (UI, Steam CEF) | Right from Play to the chevron, A opened Steam's "Play from…" menu on Battle.net, `seek Forever` and A picked World of Warcraft: Forever. The recorder saw one `launch.select`. Play read "Play \| Forever" with Forever's icon (`svg image`) and a "Play from…" chevron. With the setting on, `launch.state` went out every 2 s. In the QAM, Options → Steam library → **Choose the WoW version from Play**, A: `settings.get` read `steamLaunchMenu: false`. `close` returned to the page, which had stayed open, and focus was on "Play". **Off:** the Play row held one button, "Play", with Steam's play glyph and no `svg image`. There was no "Play from…" chevron, so Steam offered no menu, and no context menu was open. The screenshot shows Steam's plain green Play button with nothing under "Play". The WoW addons section read "All addons are up to date \| Check for updates \| Open" with no launch status line. The recorder stayed at 25 messages from the toggle until 22 s after the last `launch.state` (sent 2.6 s before the toggle was confirmed), so no launch call went out while off. **On again:** the same toggle, A, read `steamLaunchMenu: true`. `close` returned to the same page without reopening it. Focus was on "Play Forever", and Play read "Play \| Forever" with Forever's icon and the chevron. Within 7 s the recorder saw one `launch.icon` and `launch.state` every 2 s again. |
+
+The page had no addon updates waiting, so **Update all** was absent both
+on and off. L-2 shows it only when updates wait, and the band was the
+same in both states. This run didn't check that it shows while off when
+updates wait.
+
+End state: **Choose the WoW version from Play** is on. `launch.state`
+for `4221385996` targets Forever (`5e80311f078e`), `entryRunning: false`,
+`gameRunning: not_running`, `busy: false`. Steam is on the WoW page with
+no menu open. The recorder is removed. `deck down` closed the tunnel and
+turned autoUpdate on again. The tested build stays installed, engine pid
+221067.

@@ -516,7 +516,7 @@ describe("settings.set, key by key", () => {
   }
 
   test("the toggles store only a real true as true", async () => {
-    for (const key of ["steamAutoCheck", "steamBadge", "hideLibraries", "hideUnmanaged", "keepPreviousVersions", "autoUpdate"]) {
+    for (const key of ["steamAutoCheck", "steamBadge", "steamLaunchMenu", "hideLibraries", "hideUnmanaged", "keepPreviousVersions", "autoUpdate"]) {
       expect((await set({ [key]: true }))[key]).toBe(true);
       expect((await set({ [key]: "false" }))[key]).toBe(false);
       expect((await set({ [key]: 1 }))[key]).toBe(false);

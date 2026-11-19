@@ -5,7 +5,7 @@ import { settingsStore } from "./settings";
 import { useSyncExternalStore } from "react";
 import { addonSession } from "./session";
 import { linkedSteamGames } from "./steamLibrary";
-import { createSteamLaunchPatch } from "./steamLaunchPatch";
+import { createSteamLaunchSwitch, type AttachLaunch } from "./steamLaunchPatch";
 import { createWarnOnce } from "./warnOnce";
 
 function LinkedWowGameSection({
@@ -13,7 +13,7 @@ function LinkedWowGameSection({
   attachLaunch,
 }: {
   appId: number;
-  attachLaunch: (anchor: HTMLElement, appId: number) => void;
+  attachLaunch: AttachLaunch;
 }) {
   const { settings } = useSyncExternalStore(settingsStore.subscribe, settingsStore.get);
   const { installations } = useSyncExternalStore(addonSession.subscribe, addonSession.get);
@@ -40,8 +40,8 @@ const warnOnce = createWarnOnce("game page section not shown");
 /* eslint-disable @typescript-eslint/no-explicit-any -- Steam's React tree is untyped */
 export function patchGamePage(): () => void {
   let active = true;
-  const launchPatch = createSteamLaunchPatch();
-  launchPatch.install();
+  // Steam's Play button gets WoWDeck's only while Options says so (#286).
+  const launchSwitch = createSteamLaunchSwitch();
   const renderPatches = new Map<object, ReturnType<typeof afterPatch>>();
   const patch = routerHook.addPatch(GAME_PAGE_ROUTE, (tree: any) => {
     try {
@@ -83,7 +83,7 @@ export function patchGamePage(): () => void {
               <LinkedWowGameSection
                 key={SECTION_KEY}
                 appId={appId}
-                attachLaunch={launchPatch.attach}
+                attachLaunch={launchSwitch.attach}
               />
             );
             const index = children.findIndex((c) => c?.key === SECTION_KEY);
@@ -107,7 +107,7 @@ export function patchGamePage(): () => void {
     routerHook.removePatch(GAME_PAGE_ROUTE, patch);
     for (const installed of renderPatches.values()) installed.unpatch();
     renderPatches.clear();
-    launchPatch.dispose();
+    launchSwitch.dispose();
   };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */

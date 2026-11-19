@@ -3,7 +3,7 @@ import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { FaBoxOpen, FaChevronDown } from "react-icons/fa";
 import type { LaunchClient, LaunchState } from "../../backend/src/api/contracts";
 import { addonSession } from "../session";
-import { settingsStore } from "../settings";
+import { settingsStore, steamLaunchMenuOn } from "../settings";
 import { linkedSteamGames } from "../steamLibrary";
 import { launchControl, playButtonView } from "../steamLaunch";
 import {
@@ -109,12 +109,17 @@ export function isLinkedApp(appId: number): boolean {
   return isLinked(appId, settingsStore.get().settings, addonSession.get().installations);
 }
 
-/** This shortcut's launch state, read only on a linked page. */
+/**
+ * This shortcut's launch state, read only on a linked page while Options'
+ * "Choose the WoW version from Play" is on. Off, a button the patch couldn't
+ * remount stops reading and draws Steam's own tree.
+ */
 function useLaunchState(appId: number) {
-  const { settings } = useSyncExternalStore(settingsStore.subscribe, settingsStore.get);
+  const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.get);
   const session = useSyncExternalStore(addonSession.subscribe, addonSession.get);
-  const linked = isLinked(appId, settings, session.installations);
-  return useResource(steamLaunchState, linked ? String(appId) : null);
+  const read =
+    steamLaunchMenuOn(settings) && isLinked(appId, settings.settings, session.installations);
+  return useResource(steamLaunchState, read ? String(appId) : null);
 }
 
 /**

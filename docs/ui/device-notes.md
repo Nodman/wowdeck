@@ -154,7 +154,7 @@ Two sources. LIVE rows were observed on the owner's Deck on 2026-11-18 and
 are listed in spec #285. INFERRED rows come only from reading Steam's
 minified UI source that day (module 85273 of the Gaming Mode bundle). No
 Deck run has exercised the patched button yet. The regression plan's L-13
-to L-24 rows are that run.
+to L-24 and L-27 rows are that run.
 
 ### What Steam does (LIVE)
 
@@ -184,6 +184,7 @@ Steam's plain Play button and its own menu, which keep working.
 | Wrapper export: a `forwardRef` whose render source contains `navigator:` and `instance:` (`isPlayButtonWrapper`, `src/steamLaunchPatch.tsx`) | Finds the exported component that renders Steam's private Play button class | INFERRED | No patch. One warning ("no Play button wrapper"), and Steam's button |
 | `ShowStreamingMenu`, `GetTextForRemoteClientAction` and `render` on the class prototype (`isPlayButtonClass`) | Tells the Play button class from anything else the wrapper returns | INFERRED | The wrapper's element passes through unpatched, without a warning, and Steam's button stays |
 | mobx-react v9's class `render` installer: on first render it defines the instance's own `render` with `writable: false, configurable: false` (`hookObserverRender`, `src/observerRender.ts`) | WoWDeck replaces the prototype's render and wraps the instance's render as mobx defines it; an instance rendered earlier remounts through a new key on the wrapper's element | LIVE (2026-11-18: assigning to a mounted instance's `render` did nothing) | That button stays Steam's plain Play. A hook that throws logs one warning ("render not patchable") |
+| A component above the Play button re-renders Steam's wrapper, and React remounts the button when the wrapper's element gains or loses WoWDeck's key (`remountPlayButton`, `src/steamLaunchPatch.tsx`) | Applies Options' "Choose the WoW version from Play" (#286) to an open game page: on remounts Play through the patch, off disposes the patch and remounts Steam's own | LIVE for the keyed remount on plugin load (2026-11-18). INFERRED for the unkeyed remount after disposal until the L-27 run | One warning ("no component above the Play button to remount it"). Turned on, Play stays Steam's until the page reopens. Turned off, the patched button stops reading launch state and draws Steam's tree on its next render |
 | `overview.appid` on the instance's props | Decides whether the page is a linked WoW entry | INFERRED | The button stays Steam's |
 | `overview.BIsSelectedClientLocal()` | Tells a stream target from this Deck: Steam's labels while streaming, and the checkmark on our row only while local | INFERRED | WoWDeck treats this Deck as selected, so its label replaces Steam's Stream label even with a stream target |
 | `ShowStreamingMenu(event)` on the instance (`openMenu`) | Opens Steam's own "Play from…" menu, anchored to Play | INFERRED | One warning ("no Play from menu"). The chevron does nothing, Play still works |

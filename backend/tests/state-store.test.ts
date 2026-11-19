@@ -140,6 +140,16 @@ describe("StateStore normalizes stored settings (RF-07)", () => {
     expect(settings).not.toHaveProperty("somethingOld");
   });
 
+  test("Choose the WoW version from Play starts on, and only a stored true keeps it on", () => {
+    const path = join(mkdtempSync(join(tmpdir(), "state-store-")), "state.json");
+    writeFileSync(path, JSON.stringify({ settings: {} }));
+    expect(new StateStore(path).load().settings.steamLaunchMenu).toBe(true);
+    for (const stored of ["true", 1, null]) {
+      writeFileSync(path, JSON.stringify({ settings: { steamLaunchMenu: stored } }));
+      expect(new StateStore(path).load().settings.steamLaunchMenu).toBe(false);
+    }
+  });
+
   test("the stored release-check answer survives a reload; a broken one costs one extra check, not a wrong answer", () => {
     const good = {
       checkedAt: 1_800_000_000_000,

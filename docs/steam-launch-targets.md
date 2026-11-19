@@ -37,6 +37,12 @@ Classic Era or Anniversary installation selects Classic, and a saved
 version that has no row any more falls back to Battle.net.
 An attempt already in progress keeps its original target.
 
+Options → Steam library → **Choose the WoW version from Play** turns off
+WoWDeck's Play button and menu rows. Steam's own Play button and "Play
+from…" menu come back, and the WoW addons section drops its launch lines.
+Each shortcut keeps its saved choice, and turning the option back on
+restores it ([ADR 0016](adr/0016-patch-steams-play-button.md)).
+
 The picker lists only the WoW clients Battle.net has installed in the
 shortcut's prefix. It reads Battle.net's own install list,
 `drive_c/ProgramData/Battle.net/Agent/product.db`, and matches each entry's

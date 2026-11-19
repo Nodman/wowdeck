@@ -1609,6 +1609,13 @@ export interface PluginSettings {
   steamAutoCheck: boolean;
   /** Badge on the linked game's tile on Steam's home screen; off = a kill switch if a Steam update breaks it. */
   steamBadge: boolean;
+  /**
+   * WoWDeck's launch target choice on Steam's Play button on the linked game
+   * page (#284, ADR 0016); the off switch is #286. Off: Steam's own Play button and "Play from…"
+   * menu, and the addons section drops its launch lines. A kill switch if a
+   * Steam update breaks the patch. `steamLaunchTargets` is kept while off.
+   */
+  steamLaunchMenu: boolean;
   /** My Addons hides libraries (addons installed only as another's dependency, WF-22). */
   hideLibraries: boolean;
   /** My Addons hides unmanaged addons (installed manually, never updated). */

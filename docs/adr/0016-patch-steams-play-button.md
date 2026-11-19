@@ -56,6 +56,23 @@ its own menu stay usable. If the jsx runtime can't be intercepted, Steam's
 unchanged menu opens. If an instance's `render` can't be replaced, that
 button stays Steam's.
 
+## Off switch
+
+Options → Steam library has **Choose the WoW version from Play**, on by
+default (#286). While it is off, WoWDeck installs none of the above: no
+wrapper patch, no class hook, no jsx runtime swap. Steam's plain Play
+button and its own "Play from…" menu work as they did before #284. The
+WoW addons section stays on the page but reads no launch state and shows
+no launch lines. A change applies to an open game page at once: turning
+the option on remounts Play through the patch by its key, and turning it
+off disposes the patch and remounts Steam's own. Each shortcut's saved
+launch target stays, so turning it back on restores the player's pick.
+
+The checks above catch the Steam changes we can foresee. When one slips
+past them, or a player wants Steam's own Play button, turning the option
+off brings that button back. Unlinking the game would do it too, but it
+also removes the addons section.
+
 ## Consequences
 
 - Each Steam client update needs a Deck check of the Play button (the

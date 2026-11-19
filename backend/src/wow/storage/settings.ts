@@ -246,6 +246,7 @@ const RULES: Rules = {
   steamAutoLink: toggle(true),
   steamAutoCheck: toggle(true),
   steamBadge: toggle(true),
+  steamLaunchMenu: toggle(true),
   hideLibraries: toggle(false),
   hideUnmanaged: toggle(false),
   keepPreviousVersions: toggle(true),

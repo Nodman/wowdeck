@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, mock, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 // Decky's own patcher, so the wrapper patch runs against the real one.
 import { afterPatch } from "@decky/ui/dist/utils/patcher.js";
 import { JSDOM } from "jsdom";
@@ -17,6 +17,7 @@ import { defaultSettings } from "../backend/src/wow/storage/settings";
 import { deckyUiStub } from "./deckyUiStub";
 import { connectEngine } from "./engineLink";
 import { createFakeEngine } from "./testSupport/fakeEngine";
+import { saveSetting } from "./testSupport/saveSetting";
 
 /*
  * Steam's private Play button, shaped like the Deck's (ADR 0016,
@@ -126,6 +127,8 @@ class SteamPlayButton extends Component<{
   }
 }
 
+const steamClassRender = SteamPlayButton.prototype.render;
+
 // Steam's wrapper adds `navigator` and `instance`; the patch finds it by those props.
 const SteamPlayWrapper = forwardRef<unknown, { overview: Overview }>(
   function PlayWrapper(props, ref) {
@@ -167,7 +170,7 @@ mock.module("@decky/ui", () => ({
 }));
 mock.module("@decky/api", () => ({ toaster: { toast: () => {} } }));
 
-const { createSteamLaunchPatch } = await import("./steamLaunchPatch");
+const { createSteamLaunchPatch, createSteamLaunchSwitch } = await import("./steamLaunchPatch");
 const { settingsStore } = await import("./settings");
 
 const battlenet: LaunchClient = {
@@ -340,4 +343,79 @@ test("a menu that throws while it is built still gets Steam's jsx back", async (
   expect(() => onClick()).toThrow("Steam's menu failed");
   expect(jsxRuntime.jsx).toBe(steamJsx);
   expect(shownMenu).toBeNull();
+});
+
+/** Steam's Play button has no WoWDeck hook: its wrapper and class render are Steam's own. */
+function steamUnhooked(): boolean {
+  return (
+    (SteamPlayWrapper as unknown as { render: { name: string } }).render.name === "PlayWrapper" &&
+    SteamPlayButton.prototype.render === steamClassRender
+  );
+}
+
+/** Options' "Choose the WoW version from Play" toggle, then the launch state arrives. */
+async function setLaunchMenu(on: boolean) {
+  await saveSetting(settingsStore, fake, { steamLaunchMenu: on });
+  await act(async () => {});
+}
+
+describe("Choose the WoW version from Play", () => {
+  let launchSwitch: ReturnType<typeof createSteamLaunchSwitch> | undefined;
+  afterEach(() => {
+    launchSwitch?.dispose();
+    launchSwitch = undefined;
+  });
+
+  /** The addon section mounted on the open page and handed it to the switch. */
+  async function attachToSwitch(appId = 42) {
+    await act(async () => void launchSwitch!.attach(anchor(), appId));
+    await act(async () => {});
+  }
+
+  test("off: a linked page keeps Steam's Play button, with no hook and no launch reads", async () => {
+    await setLaunchMenu(false);
+    launchSwitch = createSteamLaunchSwitch();
+    await showPage();
+    await attachToSwitch();
+    expect(playText()).toBe("Play");
+    expect(steamUnhooked()).toBe(true);
+    expect(fake.paramsOf("launch.state")).toEqual([]);
+    expect(fake.paramsOf("launch.icon")).toEqual([]);
+  });
+
+  test("flipped with the page open: on remounts Play through the patch, off restores Steam's, on again keeps the target", async () => {
+    await setLaunchMenu(false);
+    launchSwitch = createSteamLaunchSwitch();
+    await showPage();
+    await attachToSwitch();
+
+    await setLaunchMenu(true);
+    expect(playText()).toBe("PlayForever");
+    expect(steamUnhooked()).toBe(false);
+
+    await setLaunchMenu(false);
+    expect(playText()).toBe("Play");
+    expect(doc().querySelector("#root .PlayButton")?.className).not.toContain("HasRemoteText");
+    expect(steamUnhooked()).toBe(true);
+
+    await setLaunchMenu(true);
+    expect(playText()).toBe("PlayForever");
+    expect(fake.paramsOf("launch.select")).toEqual([]);
+  });
+
+  test("after off then on, the next page open renders through the patch", async () => {
+    launchSwitch = createSteamLaunchSwitch();
+    await showPage();
+    let detach: () => void = () => {};
+    await act(async () => {
+      detach = launchSwitch!.attach(anchor(), 42);
+    });
+    detach();
+    await setLaunchMenu(false);
+    await setLaunchMenu(true);
+    await act(async () => root.render(null));
+    await showPage();
+    await attachToSwitch();
+    expect(playText()).toBe("PlayForever");
+  });
 });

@@ -4,7 +4,7 @@ import { FaBoxOpen } from "react-icons/fa";
 import { engine } from "../engineLink";
 import { pluginToast, toastError } from "../toast";
 import { createAddonActions } from "../addonActions";
-import { settingsStore } from "../settings";
+import { settingsStore, steamLaunchMenuOn } from "../settings";
 import { openPanel } from "../openPanel";
 import { activeInstallationId } from "../session";
 import { STEAM, descriptionStyle } from "../steamTheme";
@@ -12,6 +12,7 @@ import { updateSummaryText } from "../steamLibrary";
 import { steamUpdates } from "../steamUpdates";
 import { steamLaunchState } from "../steamLaunchActions";
 import { useResource } from "../useResource";
+import type { AttachLaunch } from "../steamLaunchPatch";
 
 const BUTTON = { minWidth: 0, width: "auto", padding: "8px 16px" } as const;
 
@@ -30,14 +31,18 @@ export function WowGameSection({
   attachLaunch,
 }: {
   appId: number;
-  attachLaunch: (anchor: HTMLElement, appId: number) => void;
+  attachLaunch: AttachLaunch;
 }) {
   const anchor = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (anchor.current) attachLaunch(anchor.current, appId);
+    return anchor.current ? attachLaunch(anchor.current, appId) : undefined;
   }, [appId, attachLaunch]);
 
-  const launch = useResource(steamLaunchState, String(appId));
+  // "Choose the WoW version from Play" off: no launch read, no launch lines.
+  const launchMenu = useSyncExternalStore(settingsStore.subscribe, () =>
+    steamLaunchMenuOn(settingsStore.get()),
+  );
+  const launch = useResource(steamLaunchState, launchMenu ? String(appId) : null);
   const checkingLaunch = launch.loading && !launch.data;
   const { summary, checking } = useSyncExternalStore(steamUpdates.subscribe, steamUpdates.get);
   const [updating, setUpdating] = useState(false);
