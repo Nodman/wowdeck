@@ -48,22 +48,52 @@ describe("client table", () => {
   });
 
   test("Battle.net launch kinds follow docs/steam-launch-targets.md", () => {
-    expect(wowClient(WowClientType.Retail)!.launch).toEqual({ kind: "product", code: "WoW", exact: true });
-    expect(wowClient(WowClientType.Forever)!.launch).toEqual({ kind: "product", code: "WoWF", exact: true });
-    expect(wowClient(WowClientType.Classic)!.launch).toEqual({ kind: "product", code: "WoWC", exact: false });
-    expect(wowClient(WowClientType.ClassicEra)!.launch).toEqual({ kind: "version", uid: "wow_classic_era" });
-    expect(wowClient(WowClientType.Anniversary)!.launch).toEqual({ kind: "version", uid: "wow_classic_anniversary" });
-    expect(wowClient(WowClientType.ClassicTitan)!.launch).toEqual({ kind: "version", uid: "wow_classic_titan" });
-    expect(wowClient(WowClientType.RetailPtr)!.launch).toEqual({ kind: "version", uid: "wowt" });
-    for (const none of [
-      WowClientType.Beta,
-      WowClientType.RetailXPtr,
-      WowClientType.ClassicPtr,
-      WowClientType.ClassicEraPtr,
-      WowClientType.ClassicBeta,
-      WowClientType.ClassicCnBeta,
-    ]) {
-      expect(wowClient(none)!.launch).toEqual({ kind: "none" });
-    }
+    expect(wowClient(WowClientType.Retail)!.launch).toEqual({
+      kind: "product",
+      code: "WoW",
+      exact: true,
+    });
+    expect(wowClient(WowClientType.Forever)!.launch).toEqual({
+      kind: "product",
+      code: "WoWF",
+      exact: true,
+    });
+    expect(wowClient(WowClientType.Classic)!.launch).toEqual({
+      kind: "product",
+      code: "WoWC",
+      exact: false,
+    });
+    expect(wowClient(WowClientType.ClassicEra)!.launch).toEqual({
+      kind: "version",
+      uid: "wow_classic_era",
+    });
+    expect(wowClient(WowClientType.Anniversary)!.launch).toEqual({
+      kind: "version",
+      uid: "wow_classic_anniversary",
+    });
+    expect(wowClient(WowClientType.ClassicTitan)!.launch).toEqual({
+      kind: "version",
+      uid: "wow_classic_titan",
+    });
+    // Battle.net's own UIDs, as its log lists them (Deck, 2026-11-18).
+    expect(wowClient(WowClientType.RetailPtr)!.launch).toEqual({ kind: "version", uid: "wow_ptr" });
+    expect(wowClient(WowClientType.RetailXPtr)!.launch).toEqual({
+      kind: "version",
+      uid: "wow_ptr_x",
+    });
+    expect(wowClient(WowClientType.Beta)!.launch).toEqual({ kind: "version", uid: "wow_beta" });
+    expect(wowClient(WowClientType.ClassicPtr)!.launch).toEqual({
+      kind: "version",
+      uid: "wow_classic_ptr",
+    });
+    expect(wowClient(WowClientType.ClassicEraPtr)!.launch).toEqual({
+      kind: "version",
+      uid: "wow_classic_era_ptr",
+    });
+    expect(wowClient(WowClientType.ClassicBeta)!.launch).toEqual({
+      kind: "version",
+      uid: "wow_classic_beta",
+    });
+    expect(wowClient(WowClientType.ClassicCnBeta)!.launch).toEqual({ kind: "none" });
   });
 });

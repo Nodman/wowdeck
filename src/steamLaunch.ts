@@ -15,9 +15,15 @@ interface SteamLaunchApi {
   onError?(handler: (gameId: string, action: string) => void): (() => void) | undefined;
 }
 
+/**
+ * Whether Play can start the selected client now, and why not. Steam's
+ * running hint counts as the entry running, as it does for the label
+ * (`playButtonView`) and for the engine's `launch.start`.
+ */
 export function launchControl(
   state: LaunchState | null,
   canStartSteam = false,
+  steamEntryRunning = false,
 ): { label: string; reason: string | null } | null {
   if (!state) return null;
   let reason = null;
@@ -26,8 +32,30 @@ export function launchControl(
   else if (!state.target.launchable)
     reason = state.target.reason ?? "Start this client in Battle.net";
   else if (state.gameRunning === "unknown") reason = "Couldn't check if WoW is running";
-  else if (!state.entryRunning && !canStartSteam) reason = "Steam launch is unavailable";
+  else if (!state.entryRunning && !steamEntryRunning && !canStartSteam)
+    reason = "Steam launch is unavailable";
   return { label: state.target.shortName, reason };
+}
+
+/**
+ * How Steam's Play button looks on a page with launch state. The Steam
+ * entry is Battle.net, so it running isn't WoW running: Steam's labels
+ * (Resume, Stop, Stream) take over only while WoW runs, a stream target is
+ * selected, or Battle.net is both the target and already open (Steam's
+ * Resume brings it forward; the engine has nothing to start). A WoW client
+ * chosen while Battle.net is open keeps our label, and "Play" replaces
+ * Steam's "Resume", because Play starts that client.
+ */
+export function playButtonView(
+  state: LaunchState,
+  steam: { remote: boolean; steamEntryRunning: boolean },
+): { steamLabels: boolean; playText?: string } {
+  const entryRunning = state.entryRunning || steam.steamEntryRunning;
+  if (steam.remote || state.gameRunning === "running") return { steamLabels: true };
+  if (!entryRunning) return { steamLabels: false };
+  return state.target.kind === "battlenet"
+    ? { steamLabels: true }
+    : { steamLabels: false, playText: "Play" };
 }
 
 export function createLaunchActions(
@@ -56,6 +84,8 @@ export function createLaunchActions(
     select: async (appId: number, targetId: string) =>
       (await rpc("launch.select", { appId, targetId })).target,
     state: async (appId: number) => (await rpc("launch.state", { appId })).state,
+    icon: async (appId: number, targetId: string) =>
+      (await rpc("launch.icon", { appId, targetId })).icon,
     canStartSteam: () => Boolean(steam.getRunGame?.()),
     stopWatching,
     async start(appId: number) {

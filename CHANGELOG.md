@@ -8,7 +8,7 @@ What's new in each version of WoWDeck Addon Manager. The format follows
 
 ### Added
 
-- Choose and launch your WoW client from its linked Steam game page, even when Battle.net is closed.
+- Choose which WoW client Steam's Play button starts from its menu, even with Battle.net closed.
 
 ### Fixed
 

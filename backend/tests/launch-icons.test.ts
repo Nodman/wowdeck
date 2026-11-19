@@ -40,22 +40,51 @@ describe("reading a PE's icon", () => {
     expect(ico.length).toBe(22 + BMP.length);
   });
 
-  test("several sizes stay in order and their offsets follow the header", () => {
+  test("of several sizes, only the smallest of at least 48 px is kept", () => {
     const ico = readExecutableIcon(
       syntheticPe([
         { id: 1, width: 16, height: 16, payload: BMP },
-        { id: 2, width: 32, height: 32, payload: PNG },
+        { id: 2, width: 0, height: 0, payload: PNG },
+        { id: 3, width: 64, height: 64, payload: BMP },
+        { id: 4, width: 48, height: 48, payload: PNG },
+        { id: 5, width: 32, height: 32, payload: BMP },
       ]),
     );
     expect(ico).toBeDefined();
     if (!ico) return;
-    expect(ico[4] | (ico[5] << 8)).toBe(2);
-    const first = entryAt(ico, 0);
-    const second = entryAt(ico, 1);
-    expect(first.offset).toBe(38);
-    expect(second.offset).toBe(38 + BMP.length);
-    expect(second.width).toBe(32);
-    expect([...ico.subarray(second.offset, second.offset + PNG.length)]).toEqual([...PNG]);
+    expect(ico[4] | (ico[5] << 8)).toBe(1);
+    expect(entryAt(ico, 0)).toMatchObject({ width: 48, size: PNG.length, offset: 22 });
+    expect([...ico.subarray(22)]).toEqual([...PNG]);
+  });
+
+  test("without an image of 48 px, the largest is kept", () => {
+    const ico = readExecutableIcon(
+      syntheticPe([
+        { id: 1, width: 16, height: 16, payload: BMP },
+        { id: 2, width: 32, height: 32, payload: PNG },
+        { id: 3, width: 24, height: 24, payload: BMP },
+      ]),
+    );
+    expect(ico && entryAt(ico, 0)).toMatchObject({ width: 32, size: PNG.length });
+  });
+
+  test("of two images the same size, the deeper colour is kept", () => {
+    const ico = readExecutableIcon(
+      syntheticPe([
+        { id: 1, width: 48, height: 48, payload: BMP, bits: 8 },
+        { id: 2, width: 48, height: 48, payload: PNG, bits: 32 },
+        { id: 3, width: 48, height: 48, payload: BMP, bits: 4 },
+      ]),
+    );
+    expect(ico && entryAt(ico, 0)).toMatchObject({ width: 48, bits: 32, size: PNG.length });
+  });
+
+  test("an image the group names but lacks spoils the icon even when another is kept", () => {
+    const pe = syntheticPe([
+      { id: 1, width: 48, height: 48, payload: BMP },
+      { id: 2, width: 16, height: 16, payload: new Uint8Array(40).fill(7) },
+    ]);
+    expect(readExecutableIcon(pe)).toBeUndefined();
   });
 
   test("a PNG image is carried through untouched", () => {
@@ -143,6 +172,26 @@ describe("the executable icon cache", () => {
       () => undefined,
     );
     expect(await unreadable.icon("locked.exe")).toBeUndefined();
+  });
+
+  test("a failed read is retried; an executable without an icon is not re-read", async () => {
+    // chmod changes neither size nor mtime, so the file looks the same when it is readable again.
+    let readable = false;
+    const reads: string[] = [];
+    const cache = new ExecutableIconCache(
+      () => ({ size: 100, mtimeMs: 1 }),
+      (path) => {
+        reads.push(path);
+        if (path === "Iconless.exe") return syntheticPe([]);
+        return readable ? syntheticPe([{ id: 1, width: 16, height: 16, payload: BMP }]) : undefined;
+      },
+    );
+    expect(await cache.icon("Wow.exe")).toBeUndefined();
+    readable = true;
+    expect(await cache.icon("Wow.exe")).toBeDefined();
+    expect(await cache.icon("Iconless.exe")).toBeUndefined();
+    expect(await cache.icon("Iconless.exe")).toBeUndefined();
+    expect(reads).toEqual(["Wow.exe", "Wow.exe", "Iconless.exe"]);
   });
 
   test("the data URL is an ICO the frontend can put in an img", () => {

@@ -20,5 +20,6 @@ export function launchHandlers({ launch, installationService, store }: Pick<Hand
     "launch.start": ({ appId, canStartSteam, steamEntryRunning }) =>
       launch.start(appId, canStartSteam, steamEntryRunning),
     "launch.steamRefused": async ({ attemptId }) => launch.steamRefused(attemptId),
+    "launch.icon": async ({ appId, targetId }) => ({ icon: (await launch.icon(appId, targetId)) ?? null }),
   } satisfies Partial<HandlerTable>;
 }

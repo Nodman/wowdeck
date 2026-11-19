@@ -5,7 +5,7 @@
  */
 
 import { afterEach, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { LaunchCompletion } from "../src/api/contracts";
@@ -103,6 +103,8 @@ async function fixture(setup: Setup = {}) {
     selected: async () =>
       (await engine.call("installations.list", {})).installations.find((i) => i.selected)?.id,
     state: async () => (await engine.call("launch.state", { appId: APP_ID })).state,
+    icon: async (targetId: string) =>
+      (await engine.call("launch.icon", { appId: APP_ID, targetId })).icon,
     select: (targetId: string) => engine.call("launch.select", { appId: APP_ID, targetId }),
     start: (canStartSteam = true) => engine.call("launch.start", { appId: APP_ID, canStartSteam }),
     async at(ms: number) {
@@ -141,6 +143,22 @@ test("a saved choice survives an engine restart", async () => {
   await first.select(first.forever);
   const again = await fixture({ root: first.root });
   expect((await again.state())?.target).toMatchObject({ kind: "wow", id: first.forever, shortName: "Forever" });
+});
+
+test("a choice saved by #284's picker still resolves", async () => {
+  const first = await fixture();
+  // #284's launch.select wrote the installation id under the shortcut's app id,
+  // together with the active installation.
+  const file = join(first.root, "data/state.json");
+  const saved = JSON.parse(readFileSync(file, "utf8")) as { settings: Record<string, unknown> };
+  saved.settings.selectedInstallationId = first.forever;
+  saved.settings.steamLaunchTargets = { [String(APP_ID)]: first.forever };
+  writeFileSync(file, JSON.stringify(saved));
+
+  const again = await fixture({ root: first.root });
+  expect((await again.state())?.target).toMatchObject({
+    kind: "wow", id: first.forever, shortName: "Forever", launchable: true,
+  });
 });
 
 test("a client Battle.net can't start precisely, or one the entry doesn't offer, can't be chosen", async () => {
@@ -196,10 +214,24 @@ test("a shortcut that starts a WoW client executable directly gets no launch sta
   await expect(f.select("battlenet")).rejects.toThrow();
 });
 
-test("Battle.net carries the launcher's icon, or none for WoWDeck's glyph", async () => {
+test("icons come one client at a time, never in the polled state", async () => {
   const pe = syntheticPe([{ id: 1, width: 16, height: 16, payload: BMP }]);
   const withIcon = await fixture({ launcher: pe });
-  expect((await withIcon.state())?.target.icon).toStartWith("data:image/x-icon;base64,");
+  expect(JSON.stringify(await withIcon.state())).not.toContain("data:");
+  expect(await withIcon.icon("battlenet")).toStartWith("data:image/x-icon;base64,");
+  // The fixture's client executables are empty: WoWDeck's glyph.
+  expect(await withIcon.icon(withIcon.forever)).toBeNull();
+  expect(await withIcon.icon("no-such-client")).toBeNull();
+  expect(await withIcon.icon("constructor")).toBeNull();
+
   const unreadable = await fixture({ launcher: new TextEncoder().encode("MZ") });
-  expect((await unreadable.state())?.target).not.toHaveProperty("icon");
+  expect(await unreadable.icon("battlenet")).toBeNull();
+});
+
+test("a client's icon is read from that client's executable", async () => {
+  const f = await fixture();
+  const pe = syntheticPe([{ id: 1, width: 16, height: 16, payload: BMP }]);
+  writeFileSync(join(f.root, "home/Games/World of Warcraft/_forever_/Wow.exe"), pe);
+  expect(await f.icon(f.forever)).toStartWith("data:image/x-icon;base64,");
+  expect(await f.icon(f.retail)).toBeNull();
 });

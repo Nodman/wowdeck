@@ -203,9 +203,12 @@ function isIconImage(bytes: Uint8Array): boolean {
 }
 
 /**
- * The ICO for a PE's first icon group, or undefined when the file has no
- * readable icons. A group that names an image it does not contain is treated
- * as malformed: half an ICO is worse than our glyph.
+ * A one-image ICO from a PE's first icon group (`pickImage` chooses the
+ * image), or undefined when the file has no readable icons. Every image in
+ * the group is still checked: a group that names an image it does not
+ * contain is treated as malformed, since half an icon group is worse than
+ * our glyph. One image keeps the data: URL small; a client's full group
+ * reached 535 KB on the Deck.
  */
 export function readExecutableIcon(pe: Uint8Array): Uint8Array | undefined {
   if (!fits(pe, 0, 0x40) || !ascii(pe, 0, "MZ")) return undefined;
@@ -252,28 +255,47 @@ export function readExecutableIcon(pe: Uint8Array): Uint8Array | undefined {
     images.push(image);
   }
 
-  const total = ICO_HEADER + ICO_ENTRY * images.length;
-  const ico = new Uint8Array(total + payloadBytes);
-  const directoryView = new DataView(ico.buffer);
-  directoryView.setUint16(2, 1, true);
-  directoryView.setUint16(4, images.length, true);
-
-  let imageOffset = total;
-  for (let i = 0; i < images.length; i++) {
-    const entry = group[i];
-    const image = images[i];
-    const at = ICO_HEADER + i * ICO_ENTRY;
-    ico[at] = entry.width;
-    ico[at + 1] = entry.height;
-    ico[at + 2] = entry.colors;
-    directoryView.setUint16(at + 4, entry.planes, true);
-    directoryView.setUint16(at + 6, entry.bits, true);
-    directoryView.setUint32(at + 8, image.length, true);
-    directoryView.setUint32(at + 12, imageOffset, true);
-    ico.set(image, imageOffset);
-    imageOffset += image.length;
-  }
+  const chosen = pickImage(group);
+  const entry = group[chosen];
+  const image = images[chosen];
+  const ico = new Uint8Array(ICO_HEADER + ICO_ENTRY + image.length);
+  const view = new DataView(ico.buffer);
+  view.setUint16(2, 1, true);
+  view.setUint16(4, 1, true);
+  ico[ICO_HEADER] = entry.width;
+  ico[ICO_HEADER + 1] = entry.height;
+  ico[ICO_HEADER + 2] = entry.colors;
+  view.setUint16(ICO_HEADER + 4, entry.planes, true);
+  view.setUint16(ICO_HEADER + 6, entry.bits, true);
+  view.setUint32(ICO_HEADER + 8, image.length, true);
+  view.setUint32(ICO_HEADER + 12, ICO_HEADER + ICO_ENTRY, true);
+  ico.set(image, ICO_HEADER + ICO_ENTRY);
   return ico;
+}
+
+/** The size an image fits Play's 24 px icon from at up to 2× scale. */
+const WANTED_PX = 48;
+
+/**
+ * The group image to keep: the smallest of at least 48 px, or the largest
+ * when all are smaller; the deepest colour among equal sizes. A width byte
+ * of 0 means 256 px.
+ */
+function pickImage(group: GroupEntry[]): number {
+  const px = (entry: GroupEntry) => entry.width || 256;
+  let best = 0;
+  for (let i = 1; i < group.length; i++) {
+    const a = group[i];
+    const b = group[best];
+    const better =
+      px(a) === px(b)
+        ? a.bits > b.bits
+        : px(b) < WANTED_PX
+          ? px(a) > px(b)
+          : px(a) >= WANTED_PX && px(a) < px(b);
+    if (better) best = i;
+  }
+  return best;
 }
 
 type FileVersion = { size: number; mtimeMs: number };
@@ -281,8 +303,9 @@ type CachedIcon = FileVersion & { icon: Promise<Uint8Array | undefined> };
 
 /**
  * The icon per executable file, keyed by the facts that make it stale
- * (path, size, mtime). A failed read is cached too: an iconless executable
- * must not be stat-and-parsed again on every page open.
+ * (path, size, mtime). An executable without an icon is cached too, so it
+ * isn't parsed again on every page open. A failed read is not: a permission
+ * change leaves size and mtime alone, so the next page open reads again.
  */
 export class ExecutableIconCache {
   private readonly entries = new Map<string, CachedIcon>();
@@ -302,15 +325,23 @@ export class ExecutableIconCache {
     if (!file || file.size > MAX_EXECUTABLE_BYTES) return undefined;
     const hit = this.entries.get(path);
     if (hit && hit.size === file.size && hit.mtimeMs === file.mtimeMs) return hit.icon;
-    const icon = this.load(path, file.size);
-    this.entries.set(path, { size: file.size, mtimeMs: file.mtimeMs, icon });
+    const entry: CachedIcon = {
+      size: file.size,
+      mtimeMs: file.mtimeMs,
+      icon: this.load(path, file.size).then(({ read, icon }) => {
+        // Forget a failed read before anyone sees its answer.
+        if (!read && this.entries.get(path) === entry) this.entries.delete(path);
+        return icon;
+      }),
+    };
+    this.entries.set(path, entry);
     if (this.entries.size > 64) this.entries.delete(this.entries.keys().next().value!);
-    return icon;
+    return entry.icon;
   }
 
   private async load(path: string, size: number) {
     const bytes = await this.read(path, size);
-    return bytes ? readExecutableIcon(bytes) : undefined;
+    return { read: bytes !== undefined, icon: bytes ? readExecutableIcon(bytes) : undefined };
   }
 }
 

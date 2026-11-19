@@ -2,6 +2,7 @@ import { realpath } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import {
   BATTLE_NET_LAUNCH_TARGET,
+  BATTLE_NET_NAME,
   type BattleNetLaunchClient,
   type GameType,
   type Installation,
@@ -100,33 +101,27 @@ export async function resolveLaunchEntry(
   const present = owned.flatMap(({ installation, path }) => (path ? [{ installation, path }] : []));
   if (!present.length) return null;
 
-  const wow = await Promise.all(
-    present.map(async ({ installation, path }) => {
-      const launch = clientLaunch(basename(path).toLowerCase(), installation.gameType);
-      const icon = await executableIcon(path);
-      const client: WowLaunchClient = {
-        kind: "wow",
-        id: installation.id,
-        gameType: installation.gameType,
-        name: installation.clientFullName,
-        shortName: installation.clientName,
-        launchable: "product" in launch,
-        ...("reason" in launch && { reason: launch.reason }),
-        ...(icon && { icon }),
-      };
-      return { client, path, product: "product" in launch ? launch.product : undefined, order: tableOrder(path) };
-    }),
-  );
+  const wow = present.map(({ installation, path }) => {
+    const launch = clientLaunch(basename(path).toLowerCase(), installation.gameType);
+    const client: WowLaunchClient = {
+      kind: "wow",
+      id: installation.id,
+      gameType: installation.gameType,
+      name: installation.clientFullName,
+      shortName: installation.clientName,
+      launchable: "product" in launch,
+      ...("reason" in launch && { reason: launch.reason }),
+    };
+    return { client, path, product: "product" in launch ? launch.product : undefined, order: tableOrder(path) };
+  });
   wow.sort((a, b) => a.order - b.order);
 
-  const icon = await launcherIcon(unquote(shortcut.exe));
   const battleNet: BattleNetLaunchClient = {
     kind: "battlenet",
     id: BATTLE_NET_LAUNCH_TARGET,
-    name: "Battle.net",
-    shortName: "Battle.net",
+    name: BATTLE_NET_NAME,
+    shortName: BATTLE_NET_NAME,
     launchable: true,
-    ...(icon && { icon }),
   };
   // A saved choice the entry no longer offers falls back to Battle.net.
   const chosen = wow.find(({ client }) => client.launchable && client.id === preferredId);
@@ -137,6 +132,10 @@ export async function resolveLaunchEntry(
     ...(chosen && { targetDirectory: chosen.path, product: chosen.product }),
     prefixes,
     libraries,
+    icons: Object.fromEntries([
+      [battleNet.id, () => launcherIcon(unquote(shortcut.exe))],
+      ...wow.map(({ client, path }) => [client.id, () => executableIcon(path)]),
+    ]),
   };
 }
 

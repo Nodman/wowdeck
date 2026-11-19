@@ -6,6 +6,7 @@ import { useSyncExternalStore } from "react";
 import { addonSession } from "./session";
 import { linkedSteamGames } from "./steamLibrary";
 import { createSteamLaunchPatch } from "./steamLaunchPatch";
+import { createWarnOnce } from "./warnOnce";
 
 function LinkedWowGameSection({
   appId,
@@ -34,18 +35,13 @@ function LinkedWowGameSection({
 const GAME_PAGE_ROUTE = "/library/app/:appid";
 const SECTION_KEY = "wowdeck-game-section";
 
-let warned = false;
-function warnOnce(what: string, err?: unknown): void {
-  if (!warned) {
-    warned = true;
-    console.warn(`wowdeck: game page section not shown (${what})`, err ?? "");
-  }
-}
+const warnOnce = createWarnOnce("game page section not shown");
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- Steam's React tree is untyped */
 export function patchGamePage(): () => void {
   let active = true;
   const launchPatch = createSteamLaunchPatch();
+  launchPatch.install();
   const renderPatches = new Map<object, ReturnType<typeof afterPatch>>();
   const patch = routerHook.addPatch(GAME_PAGE_ROUTE, (tree: any) => {
     try {

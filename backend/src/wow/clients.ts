@@ -110,7 +110,7 @@ export const WOW_CLIENTS: readonly WowClient[] = [
     shortName: "Retail PTR",
     fullName: "PTR (Midnight)",
     formerNames: [],
-    launch: { kind: "version", uid: "wowt" },
+    launch: { kind: "version", uid: "wow_ptr" },
   },
   {
     clientType: WowClientType.ClassicPtr,
@@ -120,7 +120,7 @@ export const WOW_CLIENTS: readonly WowClient[] = [
     shortName: "Classic PTR",
     fullName: "PTR (MoP Classic)",
     formerNames: [],
-    launch: none,
+    launch: { kind: "version", uid: "wow_classic_ptr" },
   },
   {
     clientType: WowClientType.ClassicEraPtr,
@@ -130,7 +130,7 @@ export const WOW_CLIENTS: readonly WowClient[] = [
     shortName: "Classic Era PTR",
     fullName: "PTR (Classic Era)",
     formerNames: [],
-    launch: none,
+    launch: { kind: "version", uid: "wow_classic_era_ptr" },
   },
   {
     clientType: WowClientType.Beta,
@@ -140,7 +140,7 @@ export const WOW_CLIENTS: readonly WowClient[] = [
     shortName: "Retail Beta",
     fullName: "The War Within Beta",
     formerNames: [],
-    launch: none,
+    launch: { kind: "version", uid: "wow_beta" },
   },
   {
     clientType: WowClientType.ClassicBeta,
@@ -150,7 +150,7 @@ export const WOW_CLIENTS: readonly WowClient[] = [
     shortName: "Forever Beta",
     fullName: "World of Warcraft: Forever Beta",
     formerNames: ["Forever", "World of Warcraft: Forever"],
-    launch: none,
+    launch: { kind: "version", uid: "wow_classic_beta" },
   },
   {
     clientType: WowClientType.RetailXPtr,
@@ -160,7 +160,7 @@ export const WOW_CLIENTS: readonly WowClient[] = [
     shortName: "Retail XPTR",
     fullName: "PTR (TWW 11.2.7)",
     formerNames: [],
-    launch: none,
+    launch: { kind: "version", uid: "wow_ptr_x" },
   },
   {
     clientType: WowClientType.Anniversary,

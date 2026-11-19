@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { LaunchState } from "../backend/src/api/contracts";
 import { createEventRouter } from "./engineLink";
-import { createLaunchActions, launchControl } from "./steamLaunch";
+import { createLaunchActions, launchControl, playButtonView } from "./steamLaunch";
 import { createFakeEngine } from "./testSupport/fakeEngine";
 
 const target = {
@@ -107,6 +107,16 @@ test("uses the string shortcut game ID and reports an explicit Steam refusal onc
   expect(toasts).toEqual(["Steam couldn’t start the library entry"]);
 });
 
+test("Steam's running hint lets Play start a client without Steam's start API", () => {
+  const starting = { ...ready, entryRunning: false };
+  expect(playButtonView(starting, { remote: false, steamEntryRunning: true })).toEqual({
+    steamLabels: false,
+    playText: "Play",
+  });
+  expect(launchControl(starting, false, true)?.reason).toBeNull();
+  expect(launchControl(starting, false, false)?.reason).toBe("Steam launch is unavailable");
+});
+
 test("an already-running entry works without Steam's start API", async () => {
   const fake = createFakeEngine({ "launch.start": { state: { ...ready, busy: true } } });
   const actions = createLaunchActions(fake.rpc, createEventRouter(), () => {});
@@ -170,4 +180,48 @@ test("Steam Play suppresses RunGame both before and during the engine request", 
     await start;
     expect(launches).toEqual([]);
   }
+});
+
+describe("Steam's Play button on a linked page", () => {
+  const battlenet = {
+    kind: "battlenet",
+    id: "battlenet",
+    name: "Battle.net",
+    shortName: "Battle.net",
+    launchable: true,
+  } as const;
+  const local = { remote: false, steamEntryRunning: false };
+
+  test("Battle.net running with WoW not running shows the chosen client and Play", () => {
+    expect(playButtonView({ ...ready, entryRunning: true }, local)).toEqual({
+      steamLabels: false,
+      playText: "Play",
+    });
+    expect(
+      playButtonView({ ...ready, entryRunning: false }, { ...local, steamEntryRunning: true }),
+    ).toEqual({ steamLabels: false, playText: "Play" });
+  });
+
+  test("nothing running shows the chosen client under Steam's own Play label", () => {
+    expect(playButtonView({ ...ready, entryRunning: false }, local)).toEqual({
+      steamLabels: false,
+    });
+  });
+
+  test("WoW running or a stream target hands the button back to Steam", () => {
+    expect(playButtonView({ ...ready, gameRunning: "running" }, local).steamLabels).toBe(true);
+    expect(
+      playButtonView({ ...ready, entryRunning: false }, { ...local, remote: true }).steamLabels,
+    ).toBe(true);
+  });
+
+  test("Battle.net already running as the target keeps Steam's Resume", () => {
+    const bnet = { ...ready, target: battlenet, clients: [battlenet] };
+    expect(playButtonView({ ...bnet, entryRunning: true }, local).steamLabels).toBe(true);
+    expect(
+      playButtonView({ ...bnet, entryRunning: false }, { ...local, steamEntryRunning: true })
+        .steamLabels,
+    ).toBe(true);
+    expect(playButtonView({ ...bnet, entryRunning: false }, local)).toEqual({ steamLabels: false });
+  });
 });

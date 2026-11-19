@@ -1,7 +1,7 @@
 import { useRef, useState, type FocusEvent, type ReactNode } from "react";
 import { DialogButton, Focusable, GamepadButton, type GamepadEvent } from "@decky/ui";
 import { FaCheck, FaChevronDown } from "react-icons/fa";
-import { STEAM, descriptionStyle } from "../steamTheme";
+import { STEAM } from "../steamTheme";
 
 /**
  * A browse bar segment's picker (ADR 0002, revised 2026-10-24): the choices
@@ -27,8 +27,6 @@ export interface SegmentChoice<T> {
   /** The pick's value; null is a real choice ("All categories"), not "none". */
   data: T;
   label: string;
-  /** An unavailable choice stays focusable so the player can read its reason. */
-  disabledReason?: string;
 }
 
 export function SegmentMenu<T>({
@@ -37,7 +35,6 @@ export function SegmentMenu<T>({
   selected,
   onPick,
   renderValue,
-  placement = "below",
 }: {
   /** The menu's name for the button's label; the caption above it is BrowseBar's. */
   menuLabel: string;
@@ -45,12 +42,10 @@ export function SegmentMenu<T>({
   /** The picked choice's data (null: nothing picked or "All categories"). */
   selected: T | null;
   onPick: (data: T) => void;
-  /** The button's value renderer. Omit for a standalone chevron. */
-  renderValue?: (value: ReactNode) => ReactNode;
-  placement?: "above" | "below";
+  /** The button's value renderer (BAR_DROPDOWN_VALUE keeps it inside the button). */
+  renderValue: (value: ReactNode) => ReactNode;
 }) {
   const [open, setOpen] = useState(false);
-  const [spaceAbove, setSpaceAbove] = useState<number>();
   // The button is queried through its wrapper: @decky/ui's DialogButton does
   // not promise a forwarded ref.
   const triggerRef = useRef<HTMLDivElement>(null);
@@ -79,9 +74,6 @@ export function SegmentMenu<T>({
       choices.findIndex((c) => c.data === selected),
     );
     cursorRef.current = initial;
-    if (placement === "above" && triggerRef.current) {
-      setSpaceAbove(Math.max(0, triggerRef.current.getBoundingClientRect().top - 6));
-    }
     setOpen(true);
     // Steam needs the node registered before it can take focus (guide G7).
     setTimeout(() => focusChoice(initial), 0);
@@ -95,7 +87,6 @@ export function SegmentMenu<T>({
   };
 
   const pick = (choice: SegmentChoice<T>) => {
-    if (choice.disabledReason) return;
     onPick(choice.data);
     close(true);
   };
@@ -144,17 +135,10 @@ export function SegmentMenu<T>({
       <div ref={triggerRef}>
         <DialogButton
           aria-label={menuLabel}
-          aria-expanded={open}
           onClick={() => (open ? close(true) : openList())}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            width: renderValue ? "100%" : "auto",
-            minWidth: renderValue ? undefined : 0,
-          }}
+          style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%" }}
         >
-          {renderValue?.(selectedLabel)}
+          {renderValue(selectedLabel)}
           <FaChevronDown style={{ flex: "none", width: "10px", color: STEAM.textMuted }} />
         </DialogButton>
       </div>
@@ -166,11 +150,8 @@ export function SegmentMenu<T>({
           ref={listRef}
           style={{
             position: "absolute",
-            ...(placement === "above"
-              ? { bottom: "calc(100% + 6px)" }
-              : { top: "calc(100% + 6px)" }),
-            left: renderValue ? "0" : undefined,
-            minWidth: renderValue ? undefined : "min(280px, 70vw)",
+            top: "calc(100% + 6px)",
+            left: "0",
             right: "0",
             zIndex: "30",
           }}
@@ -178,9 +159,6 @@ export function SegmentMenu<T>({
           <Focusable
             flow-children="column"
             className="wowdeck-segment-menu"
-            style={
-              spaceAbove === undefined ? undefined : { maxHeight: `min(320px, ${spaceAbove}px)` }
-            }
             onButtonDown={onListButtonDown}
             onBlur={onListBlur}
           >
@@ -188,24 +166,12 @@ export function SegmentMenu<T>({
               <DialogButton
                 key={String(choice.data)}
                 data-seg-index={index}
-                aria-label={
-                  choice.disabledReason ? `${choice.label}. ${choice.disabledReason}` : choice.label
-                }
-                aria-disabled={choice.disabledReason ? true : undefined}
+                aria-label={choice.label}
                 className="wowdeck-segment-menu-item"
                 onGamepadFocus={() => (cursorRef.current = index)}
                 onClick={() => pick(choice)}
               >
-                <span className="wowdeck-segment-menu-label">
-                  <span style={choice.disabledReason ? { color: STEAM.textDisabled } : undefined}>
-                    {choice.label}
-                  </span>
-                  {choice.disabledReason && (
-                    <span style={{ ...descriptionStyle, display: "block", whiteSpace: "normal" }}>
-                      {choice.disabledReason}
-                    </span>
-                  )}
-                </span>
+                <span className="wowdeck-segment-menu-label">{choice.label}</span>
                 {choice.data === selected && (
                   <FaCheck style={{ flex: "none", width: "12px", color: STEAM.positive }} />
                 )}

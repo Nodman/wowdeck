@@ -20,7 +20,14 @@ function align4(value: number): number {
   return (value + 3) & ~3;
 }
 
-export type FixtureIcon = { id: number; width: number; height: number; payload: Uint8Array };
+export type FixtureIcon = {
+  id: number;
+  width: number;
+  height: number;
+  payload: Uint8Array;
+  /** The group entry's colour depth; 32 when unset. */
+  bits?: number;
+};
 
 /**
  * A minimal PE32 with one `.rsrc` section: RT_GROUP_ICON(14) pointing at
@@ -101,7 +108,7 @@ export function syntheticPe(icons: FixtureIcon[], pe32Plus = false): Uint8Array 
       0,
       0,
       ...u16(1),
-      ...u16(32),
+      ...u16(icon.bits ?? 32),
       ...u32(icon.payload.length),
       ...u16(icon.id),
     ]);

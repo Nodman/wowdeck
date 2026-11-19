@@ -120,11 +120,13 @@ export async function findFlavorDirs(rootPath: string): Promise<string[]> {
     }
   };
 
-  // case 1: path points directly at a flavor dir
-  const baseName = rootPath.replace(/\\/g, "/").replace(/\/+$/, "").split("/").pop() ?? "";
+  // case 1: path points directly at a flavor dir. Steam stores a shortcut's
+  // start folder with a trailing slash; the flavor's key must not keep it.
+  const flavorPath = rootPath.length > 1 ? rootPath.replace(/\/+$/, "") : rootPath;
+  const baseName = flavorPath.replace(/\\/g, "/").split("/").pop() ?? "";
   if (WOW_FLAVOR_FOLDERS.includes(baseName as never)) {
-    if (await isDirectory(rootPath)) {
-      found.push(rootPath);
+    if (await isDirectory(flavorPath)) {
+      found.push(flavorPath);
       return found;
     }
   }

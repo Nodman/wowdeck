@@ -11,6 +11,11 @@ export interface LaunchEntry {
   product?: string;
   prefixes: string[];
   libraries: string[];
+  /**
+   * Each client's icon reader, by client id, for executables this
+   * resolution owns. Read on request only: icons stay out of the state.
+   */
+  icons?: Record<string, () => Promise<string | undefined>>;
 }
 
 export interface Observation {
@@ -115,6 +120,13 @@ export class LaunchService {
     this.active = attempt;
     void this.run(attempt, observed);
     return { state: this.snapshot(entry, observed), steamStart };
+  }
+
+  /** One client's icon as a data: URL; undefined for WoWDeck's glyph. */
+  async icon(appId: number, targetId: string): Promise<string | undefined> {
+    const entry = typeof targetId === "string" ? await this.entry(appId) : null;
+    const read = entry?.icons && Object.hasOwn(entry.icons, targetId) ? entry.icons[targetId] : undefined;
+    return read?.();
   }
 
   steamRefused(attemptId: string): void {

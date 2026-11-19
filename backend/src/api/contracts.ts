@@ -674,19 +674,19 @@ export interface TradeSkillMasterAuthStatus {
 
 /** The Battle.net launcher's target id in `launch.select` and in saved choices. */
 export const BATTLE_NET_LAUNCH_TARGET = "battlenet";
+/** The Battle.net launcher's name in the menu row and on the Play button. */
+export const BATTLE_NET_NAME = "Battle.net";
 
 interface LaunchTargetFields {
   /** What `launch.select` takes: an installation id, or BATTLE_NET_LAUNCH_TARGET. */
   id: string;
-  /** The menu row's label: the client's full name, or "Battle.net". */
+  /** The menu row's label: the client's full name, or BATTLE_NET_NAME. */
   name: string;
-  /** The Play button's second line: the client's short name, or "Battle.net". */
+  /** The Play button's second line: the client's short name, or BATTLE_NET_NAME. */
   shortName: string;
   launchable: boolean;
   /** Player-facing explanation for a client that cannot be started precisely. */
   reason?: string;
-  /** A data: URL of the executable's icon; absent means WoWDeck's glyph. */
-  icon?: string;
 }
 
 /** The Battle.net launcher itself: Steam's own launch, with no launch ask. */
@@ -972,6 +972,17 @@ export interface MethodMap {
   "launch.steamRefused": {
     params: { attemptId: string };
     result: void;
+  };
+  /**
+   * One client's icon for the Play button: a data: URL of a single-image
+   * ICO, the smallest image of at least 48 px. Null means WoWDeck's glyph
+   * (no such client, no icon, or the read failed; a failed read is tried
+   * again on the next call). Kept out of `launch.state`, which the page
+   * polls every 2 s.
+   */
+  "launch.icon": {
+    params: { appId: number; targetId: string };
+    result: { icon: string | null };
   };
 
   "installations.list": {
