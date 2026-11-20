@@ -19,7 +19,8 @@ import { steamUpdates } from "../steamUpdates";
  * and grid): green with a download arrow when addon updates are waiting,
  * dark with a check when all are current, blue while checking (BEYOND-05;
  * owner, 2026-10-16: glyphs and colours only). A newly seen tile also starts
- * the throttled background check (steamUpdates.onSurfaceShown).
+ * the throttled background check (steamUpdates.onSurfaceShown), with "Tile
+ * badge" off too; with Show in Steam off no tile is looked for at all.
  *
  * No Decky plugin patches home tiles, so this works on the DOM: a tile is
  * found by its image, `customimages/<appid>.png` (or `p.png`, the portrait
@@ -151,11 +152,15 @@ export function startHomeBadge(): () => void {
       if (!doc) {
         return;
       }
-      const badge = settingsStore.get().settings.steamBadge;
+      // Tiles are looked for with the badge off too: one appearing still
+      // starts the check "Check for updates" promises.
       const games = shownLinkedGames(settingsStore.get(), linkedGamesStore.get());
-      const tiles = badge ? games.flatMap((game) => findTiles(doc!, game.appId)) : [];
+      const tiles = games.flatMap((game) => findTiles(doc!, game.appId));
       const { summary, checking } = steamUpdates.get();
-      const state = tiles.length ? badgeState(summary, checking) : null;
+      const state =
+        tiles.length && settingsStore.get().settings.steamBadge
+          ? badgeState(summary, checking)
+          : null;
       for (const old of Array.from(doc.querySelectorAll(`.${BADGE_CLASS}`))) {
         if (!state || !tiles.includes(old.parentElement as HTMLElement)) {
           old.remove();
@@ -194,23 +199,22 @@ export function startHomeBadge(): () => void {
   } catch (err) {
     warnOnce("observer failed", err);
   }
-  // A new game or a badge switched on counts its tiles as appearing again;
-  // any other setting leaves them alone.
-  const steamKey = () =>
-    `${shownLinkedGames(settingsStore.get(), linkedGamesStore.get())
+  // A newly shown game counts its tiles as appearing again. The badge
+  // switching on or off only redraws: the tiles were seen all along.
+  const shownKey = () =>
+    shownLinkedGames(settingsStore.get(), linkedGamesStore.get())
       .map((g) => g.appId)
-      .join(",")}:${settingsStore.get().settings.steamBadge}`;
-  let lastSteamKey = steamKey();
-  const linksChanged = () => {
-    if (steamKey() === lastSteamKey) {
-      return;
+      .join(",");
+  let lastShownKey = shownKey();
+  const changed = () => {
+    if (shownKey() !== lastShownKey) {
+      lastShownKey = shownKey();
+      seen = new WeakSet();
     }
-    lastSteamKey = steamKey();
-    seen = new WeakSet();
     schedule();
   };
-  const offSettings = settingsStore.subscribe(linksChanged);
-  const offLinkedGames = linkedGamesStore.subscribe(linksChanged);
+  const offSettings = settingsStore.subscribe(changed);
+  const offLinkedGames = linkedGamesStore.subscribe(changed);
   const offUpdates = steamUpdates.subscribe(schedule);
   schedule();
 

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, jest, mock, test } from "bun:test";
 import { JSDOM } from "jsdom";
-import type { LinkedGames } from "../../backend/src/api/contracts";
+import type { LinkedGames, PluginSettings } from "../../backend/src/api/contracts";
 import { defaultSettings } from "../../backend/src/wow/storage/settings";
 import { connectEngine } from "../engineLink";
 import { createFakeEngine, type FakeEngine } from "../testSupport/fakeEngine";
@@ -53,9 +53,11 @@ async function settle() {
 }
 const badge = () => dom.window.document.querySelector(".wowdeck-tile-badge");
 
-async function load(linked: LinkedGames) {
+async function load(linked: LinkedGames, options: Partial<PluginSettings> = {}) {
   const settings = settingsStore.load();
-  fake.next("settings.get").resolve({ settings: { ...defaultSettings(), steamAutoCheck: false } });
+  fake
+    .next("settings.get")
+    .resolve({ settings: { ...defaultSettings(), steamAutoCheck: false, ...options } });
   await settings;
   const games = linkedGamesStore.load();
   fake.next("linkedGames.get").resolve(linked);
@@ -84,4 +86,55 @@ test("Show in Steam off removes the badge", async () => {
   });
   await settle();
   expect(badge()).toBeNull();
+});
+
+/** The background checks a tile started: summaries asked of the providers. */
+const checks = () => fake.paramsOf("addons.updateSummary").filter((p) => p?.refresh);
+
+test("with Tile badge off, a linked tile appearing still starts a check and draws no badge", async () => {
+  stop = startHomeBadge();
+  await load(
+    { enabled: true, games: [WOW], removed: [] },
+    { steamBadge: false, steamAutoCheck: true },
+  );
+  await settle();
+  expect(checks()).toHaveLength(1);
+  expect(badge()).toBeNull();
+});
+
+test("with Check for updates off, a linked tile appearing draws the badge and starts no check", async () => {
+  stop = startHomeBadge();
+  await load(
+    { enabled: true, games: [WOW], removed: [] },
+    { steamBadge: true, steamAutoCheck: false },
+  );
+  await settle();
+  expect(badge()?.getAttribute("aria-label")).toBe("WoW addon updates available");
+  expect(checks()).toEqual([]);
+});
+
+test("with Show in Steam off, a linked tile appearing draws nothing and asks the engine nothing", async () => {
+  stop = startHomeBadge();
+  await load(
+    { enabled: false, games: [WOW], removed: [] },
+    { steamBadge: true, steamAutoCheck: true },
+  );
+  await settle();
+  expect(badge()).toBeNull();
+  expect(fake.paramsOf("addons.updateSummary")).toEqual([]);
+});
+
+test("turning Tile badge off removes the badge; the tile stays seen, so it starts nothing", async () => {
+  stop = startHomeBadge();
+  await load({ enabled: true, games: [WOW], removed: [] }, { steamBadge: true });
+  await settle();
+  expect(badge()).not.toBeNull();
+  const asked = fake.paramsOf("addons.updateSummary").length;
+
+  const reload = settingsStore.load();
+  fake.next("settings.get").resolve({ settings: { ...defaultSettings(), steamBadge: false } });
+  await reload;
+  await settle();
+  expect(badge()).toBeNull();
+  expect(fake.paramsOf("addons.updateSummary")).toHaveLength(asked);
 });
