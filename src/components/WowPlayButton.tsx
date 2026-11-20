@@ -3,7 +3,7 @@ import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { FaBoxOpen, FaChevronDown } from "react-icons/fa";
 import type { LaunchClient, LaunchState } from "../../backend/src/api/contracts";
 import { settingsStore, steamLaunchMenuOn } from "../settings";
-import { linkedGamesStore, shownLinkedGames, type LinkedGamesState } from "../linkedGames";
+import { isShownLinkedGame, linkedGamesStore } from "../linkedGames";
 import { launchControl, playButtonView } from "../steamLaunch";
 import {
   launchIconKey,
@@ -94,15 +94,9 @@ function TargetImage({ src }: { src: string | null }) {
   );
 }
 
-const isLinked = (
-  appId: number,
-  settings: ReturnType<typeof settingsStore.get>,
-  linked: LinkedGamesState,
-) => shownLinkedGames(settings, linked).some((game) => game.appId === appId);
-
 /** The app is a linked game right now: only its Play button is wrapped. */
 export function isLinkedApp(appId: number): boolean {
-  return isLinked(appId, settingsStore.get(), linkedGamesStore.get());
+  return isShownLinkedGame(appId);
 }
 
 /**
@@ -113,7 +107,7 @@ export function isLinkedApp(appId: number): boolean {
 function useLaunchState(appId: number) {
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.get);
   const linked = useSyncExternalStore(linkedGamesStore.subscribe, linkedGamesStore.get);
-  const read = steamLaunchMenuOn(settings) && isLinked(appId, settings, linked);
+  const read = steamLaunchMenuOn(settings) && isShownLinkedGame(appId, settings, linked);
   return useResource(steamLaunchState, read ? String(appId) : null);
 }
 

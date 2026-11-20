@@ -13,7 +13,7 @@ import {
 } from "@decky/ui";
 import type { LinkedGame, PluginSettings } from "../../backend/src/api/contracts";
 import { settingsStore } from "../settings";
-import { linkedGamesStore } from "../linkedGames";
+import { LOAD_FAILED, linkedGamesStore } from "../linkedGames";
 import { requestFocus } from "../focusMemory";
 import { QAM_VIEW } from "../qamState";
 import { descriptionStyle } from "../steamTheme";
@@ -70,7 +70,7 @@ const PAGE_TOGGLES: Array<{
 export function SteamLibraryModal({ closeModal }: { closeModal?: () => void }) {
   const stored = useSyncExternalStore(settingsStore.subscribe, settingsStore.get);
   const linked = useSyncExternalStore(linkedGamesStore.subscribe, linkedGamesStore.get);
-  const games = linked.linked.games;
+  const games = linked.games;
   // Off: the page rows stay in place, greyed out (S21).
   const pagesOn = stored.loaded && stored.settings.steamEnabled;
 
@@ -90,6 +90,15 @@ export function SteamLibraryModal({ closeModal }: { closeModal?: () => void }) {
     } finally {
       setFinding(false);
     }
+  };
+
+  // A failed first read: read again, and once the list is there, focus
+  // goes to its first row (S36: the Retry row is gone).
+  const retry = async () => {
+    await linkedGamesStore.load();
+    const now = linkedGamesStore.get();
+    const [first] = now.games;
+    if (now.loaded) requestFocus(VIEW, first ? gameKey(first) : NO_GAMES);
   };
 
   // The removed row is gone: focus moves to the next game, else the one
@@ -123,7 +132,16 @@ export function SteamLibraryModal({ closeModal }: { closeModal?: () => void }) {
           </DialogControlsSection>
           <DialogControlsSection>
             <DialogControlsSectionHeader>Linked games</DialogControlsSectionHeader>
-            {!linked.loaded && <Field focusable label="Loading…" />}
+            {/* One row for both, so focus stays on it while Retry reads. */}
+            {!linked.loaded && (
+              <Field
+                focusable
+                label={linked.error ? LOAD_FAILED : "Loading…"}
+                description={linked.error && <span style={descriptionStyle}>{linked.error}</span>}
+                onClick={linked.error ? () => void retry() : undefined}
+                onOKActionDescription={linked.error ? "Retry" : undefined}
+              />
+            )}
             {linked.loaded && games.length === 0 && (
               <Field focusable label="No games linked" {...focusTarget(VIEW, NO_GAMES)} />
             )}

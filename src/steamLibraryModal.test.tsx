@@ -6,7 +6,7 @@ import type { LinkedGame, LinkedGames, SteamGameLink } from "../backend/src/api/
 import { defaultSettings } from "../backend/src/wow/storage/settings";
 import { deckyUiStub } from "./deckyUiStub";
 import { connectEngine } from "./engineLink";
-import { createFakeEngine, settle, type FakeEngine } from "./testSupport/fakeEngine";
+import { createFakeEngine, engineFailure, settle, type FakeEngine } from "./testSupport/fakeEngine";
 
 /**
  * Options › Steam library (#290, #291): one row with a status line, opening
@@ -180,6 +180,54 @@ test("the Options row says where things stand: one game, several, none, or off",
   expect(await optionsRow()).toEqual(["Steam library", "Steam library · On · No games"]);
   await engineHas({ enabled: false, games: [WOW] });
   expect(await optionsRow()).toEqual(["Steam library", "Steam library · Off"]);
+});
+
+/** Settings loaded, and the linked games never read: as a fresh plugin load. */
+async function nothingReadYet() {
+  linkedGamesStore.reset();
+  fake.answers["settings.get"] = { settings: defaultSettings() };
+  await act(async () => settingsStore.load());
+}
+
+test("while the first read runs, the Options row and the list say Loading…", async () => {
+  await nothingReadYet();
+  void linkedGamesStore.load();
+  expect(await optionsRow()).toEqual(["Steam library", "Steam library · Loading…"]);
+  await openModal();
+  expect(read().slice(2, 4)).toEqual(["Linked games", "Loading…"]);
+});
+
+test("a failed read is an error with Retry, never an empty list; Retry reads again", async () => {
+  await nothingReadYet();
+  fake.answers["linkedGames.get"] = engineFailure("io_error", "disk full");
+  await act(async () => linkedGamesStore.load());
+  expect(await optionsRow()).toEqual([
+    "Steam library",
+    "Steam library · Couldn't load linked games",
+  ]);
+  await openModal();
+  expect(read().slice(2, 4)).toEqual([
+    "Linked games",
+    "Couldn't load linked games · disk full A: Retry",
+  ]);
+  expect(read()).not.toContain("No games linked");
+
+  fake.answers["linkedGames.get"] = { enabled: true, games: [WOW], removed: [] };
+  await act(async () => row("Couldn't load linked games").click());
+  await settle();
+  expect(read().slice(2, 4)).toEqual([
+    "Linked games",
+    "World of Warcraft · Found automatically A: Remove",
+  ]);
+  // The Retry row is gone: focus goes to the first game (S36).
+  expect(rememberedFocus("modal.steamLibrary")).toBe(`game:${WOW.appId}`);
+});
+
+test("a failed read after the engine answered keeps the list it showed", async () => {
+  await engineHas({ enabled: true, games: [WOW] });
+  fake.answers["linkedGames.get"] = engineFailure("io_error", "disk full");
+  await act(async () => linkedGamesStore.load());
+  expect(await optionsRow()).toEqual(["Steam library", "Steam library · On · World of Warcraft"]);
 });
 
 test("the modal lists the master switch, each linked game and the toggles for Steam's pages", async () => {

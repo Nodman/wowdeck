@@ -6,8 +6,9 @@
 import { join } from "node:path";
 import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import type { PluginSettings } from "../../api/contracts";
-import { defaultSettings, migrateLegacySteamSettings, normalizeStoredSettings } from "./settings";
+import { defaultSettings, hasLegacySteamSettings, migrateLegacySteamSettings, normalizeStoredSettings } from "./settings";
 import type { WowAddon, WowInstallation } from "../models";
+import { detectedSteamGames } from "../installation/LinkedGames";
 import { AddonRecords, type AddonCommitEvidence, type AddonRecordsState, normalizeCommitEvidence } from "../addons/AddonRecords";
 import { realStageFs, type FsStage, type StageFs } from "../fs/StageFs";
 import { UNREADABLE_STATE_MARKER } from "../addons/TransactionMarker";
@@ -72,10 +73,7 @@ export class StateStore {
       type LegacyAddon = WowAddon & { autoUpdateEnabled?: unknown };
       const installations = parsed.installations ?? [];
       // Read defensively: a throw here would read as a damaged file.
-      const found = new Set(
-        (Array.isArray(installations) ? installations : []).flatMap((i) =>
-          Array.isArray(i?.steamGames) ? i.steamGames.map((game) => game?.appId) : []),
-      ) as ReadonlySet<number>;
+      const found = new Set(detectedSteamGames(installations).keys());
       this.#state = {
         installations,
         addons: (parsed.addons ?? []).map(({ autoUpdateEnabled: _auto, ...addon }: LegacyAddon) => addon),
@@ -84,6 +82,11 @@ export class StateStore {
         ...transactionsFrom(parsed.addonTransactions),
         ...(typeof parsed.deviceId === "string" && parsed.deviceId ? { deviceId: parsed.deviceId } : {}),
       };
+      // The migration runs once: its result is written now, so the next
+      // load finds no old keys to migrate again.
+      if (hasLegacySteamSettings(parsed.settings)) {
+        this.#persistLogged(this.#state);
+      }
     } catch {
       // A file that never named a marker can't have held one: start afresh,
       // as older builds did. One that did can't be read as "no markers".

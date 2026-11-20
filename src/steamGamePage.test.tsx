@@ -82,8 +82,11 @@ test("the section renders nothing until both the settings and the linked games h
 test("shownLinkedGames: nothing until both have loaded, nothing while Show in Steam is off", () => {
   const settings = (loaded: boolean) => ({ settings: defaultSettings(), loaded });
   const games = (loaded: boolean, enabled = true) => ({
-    linked: { enabled, games: [WOW], removed: [] },
+    enabled,
+    games: [WOW],
+    removed: [],
     loaded,
+    error: null,
   });
   expect(shownLinkedGames(settings(false), games(false))).toEqual([]);
   expect(shownLinkedGames(settings(true), games(false))).toEqual([]);

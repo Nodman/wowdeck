@@ -154,7 +154,7 @@ export function startHomeBadge(): () => void {
       }
       // Tiles are looked for with the badge off too: one appearing still
       // starts the check "Check for updates" promises.
-      const games = shownLinkedGames(settingsStore.get(), linkedGamesStore.get());
+      const games = shownLinkedGames();
       const tiles = games.flatMap((game) => findTiles(doc!, game.appId));
       const { summary, checking } = steamUpdates.get();
       const state =
@@ -202,7 +202,7 @@ export function startHomeBadge(): () => void {
   // A newly shown game counts its tiles as appearing again. The badge
   // switching on or off only redraws: the tiles were seen all along.
   const shownKey = () =>
-    shownLinkedGames(settingsStore.get(), linkedGamesStore.get())
+    shownLinkedGames()
       .map((g) => g.appId)
       .join(",");
   let lastShownKey = shownKey();

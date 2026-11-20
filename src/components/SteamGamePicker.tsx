@@ -100,7 +100,7 @@ function useShortcutIcons(shown: SteamGame[]): ReadonlyMap<number, string> {
 function SteamGamePicker({ closeModal }: { closeModal?: () => void }) {
   const [query, setQuery] = useState("");
   const [all] = useState(readShortcuts);
-  const { linked } = useSyncExternalStore(linkedGamesStore.subscribe, linkedGamesStore.get);
+  const linked = useSyncExternalStore(linkedGamesStore.subscribe, linkedGamesStore.get);
   const candidates = pickerGames(all, linked);
   const matches = filterSteamGames(candidates, query);
   const shown = matches.slice(0, MAX_ROWS);

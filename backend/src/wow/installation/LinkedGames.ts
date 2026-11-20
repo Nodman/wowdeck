@@ -29,7 +29,7 @@ export class LinkedGameList {
      * Every app id in any Steam user's shortcuts; null when that isn't
      * known (a shortcuts file couldn't be read), so nothing is forgotten.
      */
-    private readonly shortcutAppIds: () => Promise<ReadonlySet<number> | null> = async () => null,
+    private readonly shortcutAppIds: () => Promise<ReadonlySet<number> | null>,
   ) {
     store.settingsListeners.add(({ before, after }) => {
       if (
@@ -46,7 +46,7 @@ export class LinkedGameList {
   get(): LinkedGames {
     const games = new Map<number, LinkedGame>();
     const removed = new Set(this.store.settings.steamRemovedGames.map(({ appId }) => appId));
-    for (const [appId, { name }] of this.#detected()) {
+    for (const [appId, { name }] of detectedSteamGames(this.installations())) {
       if (!removed.has(appId)) games.set(appId, { appId, name, source: "found" });
     }
     for (const { appId, name } of this.store.settings.steamAddedGames) {
@@ -78,7 +78,7 @@ export class LinkedGameList {
     const wasRemoved = steamRemovedGames.some(({ appId }) => appId === game.appId);
     const isLinked = this.get().games.some(({ appId }) => appId === game.appId);
     if (wasRemoved || !isLinked) {
-      const isFound = this.#detected().has(game.appId);
+      const isFound = detectedSteamGames(this.installations()).has(game.appId);
       await this.store.saveSettings({
         ...(wasRemoved && { steamRemovedGames: steamRemovedGames.filter(({ appId }) => appId !== game.appId) }),
         ...(!isFound && !isLinked && { steamAddedGames: [...steamAddedGames, game] }),
@@ -146,15 +146,20 @@ export class LinkedGameList {
   async scanned(): Promise<void> {
     if (!(await this.forgetDeleted())) this.changed(this.get());
   }
+}
 
-  /** Every game detection found, by app id: the first installation's name wins. */
-  #detected(): Map<number, SteamGameLink> {
-    const found = new Map<number, SteamGameLink>();
-    for (const installation of this.installations()) {
-      for (const game of installation.steamGames ?? []) {
-        if (!found.has(game.appId)) found.set(game.appId, game);
-      }
+/**
+ * Every game detection found, by app id: the first installation's name
+ * wins. Reads installations as stored defensively (StateStore's migration
+ * reads them before anything checked them).
+ */
+export function detectedSteamGames(installations: unknown): Map<number, SteamGameLink> {
+  const found = new Map<number, SteamGameLink>();
+  for (const installation of Array.isArray(installations) ? installations : []) {
+    const games: unknown = (installation as { steamGames?: unknown } | null)?.steamGames;
+    for (const game of Array.isArray(games) ? (games as SteamGameLink[]) : []) {
+      if (typeof game?.appId === "number" && !found.has(game.appId)) found.set(game.appId, game);
     }
-    return found;
   }
+  return found;
 }

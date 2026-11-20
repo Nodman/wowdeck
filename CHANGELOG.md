@@ -9,11 +9,10 @@ What's new in each version of WoWDeck Addon Manager. The format follows
 ### Added
 
 - Pick the WoW client Steam's Play button starts from its menu, even with Battle.net closed. Options can turn it off.
-- Options › Steam library lets you add any non-Steam game, remove a linked one, or look for WoW and Battle.net again.
+- Show in Steam, in Options › Steam library, turns WoWDeck on or off in Steam. Add, remove or find games there too.
 
 ### Fixed
 
-- Turning off Steam linking now hides WoWDeck on every game page, and Play's version choice works on games you picked.
 - Options now says when a setting couldn't be saved, and changing a setting twice in a row keeps your last choice.
 - Check for updates in Options › Steam library keeps working with the tile badge turned off.
 - Sources no longer says a revoked TradeSkillMaster account stays signed in.

@@ -3,11 +3,11 @@ import { routerHook } from "@decky/api";
 import { WowGameSection } from "./components/WowGameSection";
 import { settingsStore } from "./settings";
 import { useSyncExternalStore } from "react";
-import { linkedGamesStore, shownLinkedGames } from "./linkedGames";
+import { isShownLinkedGame, linkedGamesStore } from "./linkedGames";
 import { createSteamLaunchSwitch, type AttachLaunch } from "./steamLaunchPatch";
 import { createWarnOnce } from "./warnOnce";
 
-/** The section, on a linked game's page only (`shownLinkedGames`). */
+/** The section, on a linked game's page only (`isShownLinkedGame`). */
 export function LinkedWowGameSection({
   appId,
   attachLaunch,
@@ -17,7 +17,7 @@ export function LinkedWowGameSection({
 }) {
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.get);
   const linked = useSyncExternalStore(linkedGamesStore.subscribe, linkedGamesStore.get);
-  return shownLinkedGames(settings, linked).some((g) => g.appId === appId) ? (
+  return isShownLinkedGame(appId, settings, linked) ? (
     <WowGameSection appId={appId} attachLaunch={attachLaunch} />
   ) : null;
 }

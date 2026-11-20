@@ -49,6 +49,34 @@ describe("StateStore with a state file from an older build", () => {
   });
 });
 
+describe("StateStore migrates the old Steam settings once", () => {
+  test("the load that migrates writes the result, so the old keys are gone from the file", () => {
+    const { store, path } = loadFixtureStore();
+    const migrated = store.load().settings;
+
+    const saved = JSON.parse(readFileSync(path, "utf-8"));
+    expect(saved.settings).not.toHaveProperty("steamGame");
+    expect(saved.settings).not.toHaveProperty("steamAutoLink");
+    expect(saved.settings.steamAddedGames).toEqual(migrated.steamAddedGames);
+    expect(new StateStore(path).load().settings).toEqual(migrated);
+  });
+
+  test("Show in Steam off from Link detected Steam games off is kept on disk", () => {
+    const path = join(mkdtempSync(join(tmpdir(), "state-store-")), "state.json");
+    writeFileSync(path, JSON.stringify({ settings: { steamAutoLink: false } }));
+    expect(new StateStore(path).load().settings.steamEnabled).toBe(false);
+    expect(JSON.parse(readFileSync(path, "utf-8")).settings).toMatchObject({ steamEnabled: false });
+  });
+
+  test("a file without the old keys isn't written on load", () => {
+    const path = join(mkdtempSync(join(tmpdir(), "state-store-")), "state.json");
+    const text = JSON.stringify({ settings: { steamEnabled: true } });
+    writeFileSync(path, text);
+    new StateStore(path).load();
+    expect(readFileSync(path, "utf-8")).toBe(text);
+  });
+});
+
 describe("StateStore normalizes stored settings (RF-07)", () => {
   test("the update channel: missing or unknown is Stable, Beta is kept", () => {
     const path = join(mkdtempSync(join(tmpdir(), "state-store-")), "state.json");

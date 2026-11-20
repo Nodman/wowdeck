@@ -300,10 +300,15 @@ export function normalizeStoredSettings(stored: unknown): PluginSettings {
   return settings as PluginSettings;
 }
 
+/** Stored settings still hold a key from before linked games (`migrateLegacySteamSettings`). */
+export function hasLegacySteamSettings(stored: unknown): boolean {
+  return !!stored && typeof stored === "object" && ("steamGame" in stored || "steamAutoLink" in stored);
+}
+
 /**
- * Stored settings from before linked games, in today's keys (one time: the
- * old keys are dropped by the next write). `found` holds the app ids the
- * stored installations' detection linked.
+ * Stored settings from before linked games, in today's keys (one time:
+ * StateStore writes the result on the load that migrates). `found` holds
+ * the app ids the stored installations' detection linked.
  * - `steamAutoLink: false` starts Show in Steam (`steamEnabled`) off;
  * - the hand-made `steamGame` becomes an added game, unless detection
  *   found it: then it was a duplicate, and is dropped.
