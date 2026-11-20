@@ -3,22 +3,21 @@ import { routerHook } from "@decky/api";
 import { WowGameSection } from "./components/WowGameSection";
 import { settingsStore } from "./settings";
 import { useSyncExternalStore } from "react";
-import { addonSession } from "./session";
-import { linkedSteamGames } from "./steamLibrary";
+import { isShownLinkedGame, linkedGamesStore } from "./linkedGames";
 import { createSteamLaunchSwitch, type AttachLaunch } from "./steamLaunchPatch";
 import { createWarnOnce } from "./warnOnce";
 
-function LinkedWowGameSection({
+/** The section, on a linked game's page only (`isShownLinkedGame`). */
+export function LinkedWowGameSection({
   appId,
   attachLaunch,
 }: {
   appId: number;
   attachLaunch: AttachLaunch;
 }) {
-  const { settings } = useSyncExternalStore(settingsStore.subscribe, settingsStore.get);
-  const { installations } = useSyncExternalStore(addonSession.subscribe, addonSession.get);
-  const linked = linkedSteamGames(installations, settings.steamGame, settings.steamAutoLink);
-  return linked.some((g) => g.appId === appId) ? (
+  const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.get);
+  const linked = useSyncExternalStore(linkedGamesStore.subscribe, linkedGamesStore.get);
+  return isShownLinkedGame(appId, settings, linked) ? (
     <WowGameSection appId={appId} attachLaunch={attachLaunch} />
   ) : null;
 }

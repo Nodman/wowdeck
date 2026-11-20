@@ -34,7 +34,6 @@ async function showSection(settings: Partial<PluginSettings> = {}) {
     "settings.get": {
       settings: {
         ...defaultSettings(),
-        steamGame: { appId: 42, name: "WoW" },
         steamAutoCheck: false,
         ...settings,
       },

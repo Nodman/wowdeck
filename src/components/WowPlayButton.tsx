@@ -2,9 +2,8 @@ import { findClassModule, Focusable, MenuItem } from "@decky/ui";
 import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { FaBoxOpen, FaChevronDown } from "react-icons/fa";
 import type { LaunchClient, LaunchState } from "../../backend/src/api/contracts";
-import { addonSession } from "../session";
 import { settingsStore, steamLaunchMenuOn } from "../settings";
-import { linkedSteamGames } from "../steamLibrary";
+import { isShownLinkedGame, linkedGamesStore } from "../linkedGames";
 import { launchControl, playButtonView } from "../steamLaunch";
 import {
   launchIconKey,
@@ -95,30 +94,20 @@ function TargetImage({ src }: { src: string | null }) {
   );
 }
 
-const isLinked = (
-  appId: number,
-  settings: ReturnType<typeof settingsStore.get>["settings"],
-  installations: ReturnType<typeof addonSession.get>["installations"],
-) =>
-  linkedSteamGames(installations, settings.steamGame, settings.steamAutoLink).some(
-    (game) => game.appId === appId,
-  );
-
-/** The app is a linked WoW entry right now: only its Play button is wrapped. */
+/** The app is a linked game right now: only its Play button is wrapped. */
 export function isLinkedApp(appId: number): boolean {
-  return isLinked(appId, settingsStore.get().settings, addonSession.get().installations);
+  return isShownLinkedGame(appId);
 }
 
 /**
  * This shortcut's launch state, read only on a linked page while Options'
- * "Choose the WoW version from Play" is on. Off, a button the patch couldn't
+ * "Play starts WoW" is on. Off, a button the patch couldn't
  * remount stops reading and draws Steam's own tree.
  */
 function useLaunchState(appId: number) {
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.get);
-  const session = useSyncExternalStore(addonSession.subscribe, addonSession.get);
-  const read =
-    steamLaunchMenuOn(settings) && isLinked(appId, settings.settings, session.installations);
+  const linked = useSyncExternalStore(linkedGamesStore.subscribe, linkedGamesStore.get);
+  const read = steamLaunchMenuOn(settings) && isShownLinkedGame(appId, settings, linked);
   return useResource(steamLaunchState, read ? String(appId) : null);
 }
 

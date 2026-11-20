@@ -13,6 +13,7 @@ import {
   type PluginUpdateSnapshot,
   type PrChannelSnapshot,
   type PrChannelState,
+  type SteamGameLink,
   UPDATE_CHANNELS,
   type UpdateChannel,
 } from "../../api/contracts";
@@ -48,7 +49,7 @@ function stringList(value: unknown): string[] | null {
  * A Steam library entry as stored (BEYOND-05): a positive integer app id and
  * a display name (trimmed, at most 200 characters); anything else is null.
  */
-export function normalizeSteamGame(value: unknown): PluginSettings["steamGame"] {
+export function normalizeSteamGame(value: unknown): SteamGameLink | null {
   if (!value || typeof value !== "object") {
     return null;
   }
@@ -57,6 +58,15 @@ export function normalizeSteamGame(value: unknown): PluginSettings["steamGame"] 
     return null;
   }
   return { appId, name: name.trim().slice(0, 200) };
+}
+
+/** A stored list of Steam library entries: the valid ones, the first of each app id. */
+function normalizeSteamGames(value: unknown): SteamGameLink[] {
+  const games = new Map<number, SteamGameLink>();
+  for (const game of Array.isArray(value) ? value.map(normalizeSteamGame) : []) {
+    if (game && !games.has(game.appId)) games.set(game.appId, game);
+  }
+  return [...games.values()];
 }
 
 /**
@@ -242,8 +252,12 @@ const RULES: Rules = {
     normalize: (value) => Math.min(10, Math.max(1, Math.round(Number(value)) || 3)),
     userWritable: true,
   },
-  steamGame: { default: () => null, normalize: normalizeSteamGame, userWritable: true },
-  steamAutoLink: toggle(true),
+  // Show in Steam: the master switch (GLOSSARY: Linked game).
+  steamEnabled: toggle(true),
+  // Changed through linkedGames.add and linkedGames.remove only.
+  steamAddedGames: { default: () => [], normalize: normalizeSteamGames, userWritable: false },
+  // Changed through linkedGames.remove only.
+  steamRemovedGames: { default: () => [], normalize: normalizeSteamGames, userWritable: false },
   steamAutoCheck: toggle(true),
   steamBadge: toggle(true),
   steamLaunchMenu: toggle(true),
@@ -284,6 +298,34 @@ export function normalizeStoredSettings(stored: unknown): PluginSettings {
       : rule(key).default();
   }
   return settings as PluginSettings;
+}
+
+/** Stored settings still hold a key from before linked games (`migrateLegacySteamSettings`). */
+export function hasLegacySteamSettings(stored: unknown): boolean {
+  return !!stored && typeof stored === "object" && ("steamGame" in stored || "steamAutoLink" in stored);
+}
+
+/**
+ * Stored settings from before linked games, in today's keys (one time:
+ * StateStore writes the result on the load that migrates). `found` holds
+ * the app ids the stored installations' detection linked.
+ * - `steamAutoLink: false` starts Show in Steam (`steamEnabled`) off;
+ * - the hand-made `steamGame` becomes an added game, unless detection
+ *   found it: then it was a duplicate, and is dropped.
+ */
+export function migrateLegacySteamSettings(stored: unknown, found: ReadonlySet<number>): unknown {
+  if (!stored || typeof stored !== "object") {
+    return stored;
+  }
+  const { steamGame, steamAutoLink, ...settings } = stored as Record<string, unknown>;
+  if (!("steamEnabled" in settings) && steamAutoLink === false) {
+    settings.steamEnabled = false;
+  }
+  const game = normalizeSteamGame(steamGame);
+  if (!("steamAddedGames" in settings) && game && !found.has(game.appId)) {
+    settings.steamAddedGames = [game];
+  }
+  return settings;
 }
 
 /** What `settings.set` may apply from Options: the user-writable keys it sent, each made valid. */

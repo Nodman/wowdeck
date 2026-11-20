@@ -355,13 +355,13 @@ test.each([false, true])("discovery persists all Steam links, removes stale link
   const retail = flavor(join(home, "outside/_retail_"));
   shortcuts("100", [{ appid: 42, exe: join(retail, "Wow.exe"), start: "" }]);
   const store = new StateStore(join(home, "state.json"));
-  store.updateSettings({ autoUpdate, steamAutoCheck: false, steamBadge: false, steamGame: { appId: 9, name: "My manual entry" } });
+  store.updateSettings({ autoUpdate, steamAutoCheck: false, steamBadge: false, steamEnabled: false });
   const service = new InstallationService(store, async () => {});
   expect((await service.detect(home))[0]!.steamGames).toEqual([{ appId: 42, name: "World of Warcraft" }]);
   expect(store.settings.autoUpdate).toBe(autoUpdate);
   expect(store.settings.steamAutoCheck).toBe(false);
   expect(store.settings.steamBadge).toBe(false);
-  expect(store.settings.steamGame).toEqual({ appId: 9, name: "My manual entry" });
+  expect(store.settings.steamEnabled).toBe(false);
   shortcuts("100", []);
   expect((await service.detect(home))[0]!.steamGames).toEqual([]);
   expect(store.settings.autoUpdate).toBe(autoUpdate);

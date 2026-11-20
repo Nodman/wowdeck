@@ -42,6 +42,7 @@ import "./engineChanges";
 import { patchGamePage } from "./steamGamePage";
 import { steamLaunch } from "./steamLaunchActions";
 import { settingsStore } from "./settings";
+import { linkedGamesStore } from "./linkedGames";
 import { startHomeBadge } from "./steamDom/homeBadge";
 import { startPluginExitWatch, startQamVisibilityWatch } from "./steamDom/qamVisibility";
 import { setQamExpander, stopQamWidening } from "./steamDom/qamWidening";
@@ -355,8 +356,8 @@ export default definePlugin(() => {
   // it costs a request, so waking the Deck is a useful trigger as well.
   void selfUpdateStore.refresh({ toast: true, bypassWindow: true });
 
-  // BEYOND-05: the addons section on the linked WoW entry's game page (the
-  // linked game comes from the settings store, which Options updates).
+  // BEYOND-05: the addons section on linked games' pages (the engine's
+  // list, linkedGames.ts; nothing shows until it and the settings load).
   const unpatchGamePage = patchGamePage();
   // ...and the badge on its home tile.
   const stopHomeBadge = startHomeBadge();
@@ -371,6 +372,7 @@ export default definePlugin(() => {
   // plugin is checked.
   const stopPluginExitWatch = startPluginExitWatch(PLUGIN_NAME);
   void settingsStore.load();
+  void linkedGamesStore.load();
   void addonSession.reloadInstallations();
 
   // Both notifications also run on wake: an engine session can last weeks on

@@ -6,8 +6,9 @@
 import { join } from "node:path";
 import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import type { PluginSettings } from "../../api/contracts";
-import { defaultSettings, normalizeStoredSettings } from "./settings";
+import { defaultSettings, hasLegacySteamSettings, migrateLegacySteamSettings, normalizeStoredSettings } from "./settings";
 import type { WowAddon, WowInstallation } from "../models";
+import { detectedSteamGames } from "../installation/LinkedGames";
 import { AddonRecords, type AddonCommitEvidence, type AddonRecordsState, normalizeCommitEvidence } from "../addons/AddonRecords";
 import { realStageFs, type FsStage, type StageFs } from "../fs/StageFs";
 import { UNREADABLE_STATE_MARKER } from "../addons/TransactionMarker";
@@ -70,14 +71,22 @@ export class StateStore {
       // here so the next save doesn't write them back. Settings keep only
       // known keys, each made valid (settings.ts).
       type LegacyAddon = WowAddon & { autoUpdateEnabled?: unknown };
+      const installations = parsed.installations ?? [];
+      // Read defensively: a throw here would read as a damaged file.
+      const found = new Set(detectedSteamGames(installations).keys());
       this.#state = {
-        installations: parsed.installations ?? [],
+        installations,
         addons: (parsed.addons ?? []).map(({ autoUpdateEnabled: _auto, ...addon }: LegacyAddon) => addon),
-        settings: normalizeStoredSettings(parsed.settings),
+        settings: normalizeStoredSettings(migrateLegacySteamSettings(parsed.settings, found)),
         ...commitsFrom(parsed.addonCommits),
         ...transactionsFrom(parsed.addonTransactions),
         ...(typeof parsed.deviceId === "string" && parsed.deviceId ? { deviceId: parsed.deviceId } : {}),
       };
+      // The migration runs once: its result is written now, so the next
+      // load finds no old keys to migrate again.
+      if (hasLegacySteamSettings(parsed.settings)) {
+        this.#persistLogged(this.#state);
+      }
     } catch {
       // A file that never named a marker can't have held one: start afresh,
       // as older builds did. One that did can't be read as "no markers".
@@ -136,26 +145,46 @@ export class StateStore {
    */
   readonly settingsListeners = new Set<(change: SettingsChange) => void | Promise<void>>();
 
-  /** Write settings; subscribers react in the background. */
+  /**
+   * Write settings; subscribers react in the background. An engine-made
+   * write the file doesn't take is logged and kept in memory (persist).
+   */
   updateSettings(patch: Partial<PluginSettings>): PluginSettings {
-    const { settings, reactions } = this.#writeSettings(patch);
+    const { settings, reactions } = this.#writeSettings(patch, (next) => this.#persistLogged(next));
     reactions.catch(() => console.error(JSON.stringify({ component: "settings", reason: "subscriber-failed" })));
     return settings;
   }
 
-  /** Write settings, then wait until every subscriber has reacted (settings.set). */
+  /**
+   * Write settings, then wait until every subscriber has reacted
+   * (settings.set). Throws when the state file can't be written, leaving
+   * memory as it was and no subscriber called: what the player saved must
+   * be what a restart reads.
+   */
   async saveSettings(patch: Partial<PluginSettings>): Promise<PluginSettings> {
-    const { settings, reactions } = this.#writeSettings(patch);
+    const { settings, reactions } = this.#writeSettings(patch, (next) => {
+      try {
+        this.#write(next);
+      } catch (err) {
+        console.error(JSON.stringify({ component: "settings", reason: "write-failed", error: String(err) }));
+        throw new Error("The settings file couldn't be written");
+      }
+    });
     await reactions;
     return settings;
   }
 
-  #writeSettings(patch: Partial<PluginSettings>): { settings: PluginSettings; reactions: Promise<unknown> } {
+  /** `persist` writes the state with the new settings; memory takes them only once it returns. */
+  #writeSettings(
+    patch: Partial<PluginSettings>,
+    persist: (next: EngineState) => void,
+  ): { settings: PluginSettings; reactions: Promise<unknown> } {
     const state = this.load();
     const before = state.settings;
-    state.settings = { ...before, ...patch };
-    void this.persist();
-    const change = { before, after: state.settings };
+    const after = { ...before, ...patch };
+    persist({ ...state, settings: after });
+    state.settings = after;
+    const change = { before, after };
     const reactions = [...this.settingsListeners].map((listener) => {
       try {
         return Promise.resolve(listener(change));
@@ -163,7 +192,7 @@ export class StateStore {
         return Promise.reject(err);
       }
     });
-    return { settings: state.settings, reactions: Promise.all(reactions) };
+    return { settings: after, reactions: Promise.all(reactions) };
   }
 
   get installations(): WowInstallation[] {
@@ -222,17 +251,21 @@ export class StateStore {
    * selected installation. Sync writes keep the file consistent
    * with memory at all times; rename keeps each write atomic.
    *
-   * Settings, installations and the device id go through here, which logs a
-   * failed write and carries on; addon record writes report theirs
-   * (`#writeAddons`).
+   * Installations, the device id and engine-made settings writes go through
+   * here, which logs a failed write and carries on; `settings.set`
+   * (`saveSettings`) and addon record writes report theirs.
    */
   persist(): Promise<void> {
+    this.#persistLogged(this.load());
+    return Promise.resolve();
+  }
+
+  #persistLogged(state: EngineState): void {
     try {
-      this.#write(this.load());
+      this.#write(state);
     } catch (err) {
       console.error(`[store] persist failed: ${String(err)}`);
     }
-    return Promise.resolve();
   }
 }
 

@@ -17,14 +17,17 @@ import type { LaunchEntry } from "./LaunchService";
 
 const canonical = (path: string) => realpath(path).catch(() => undefined);
 
+/**
+ * The launch entry for a Steam shortcut, or null when WoWDeck can't launch
+ * through it. Whether the app id is a linked game is the caller's check
+ * (LinkedGameList.isLinked in engine.ts).
+ */
 export async function resolveLaunchEntry(
   appId: number,
   installations: Installation[],
   steam: Pick<InstallationDetector, "steamLibraryFolders" | "steamShortcuts">,
   preferredId?: string,
 ): Promise<LaunchEntry | null> {
-  // The page belongs to WoWDeck only when it linked an installation to it.
-  if (!installations.some((i) => i.steamGames?.some((game) => game.appId === appId))) return null;
   const [shortcuts, folders] = await Promise.all([
     steam.steamShortcuts(),
     steam.steamLibraryFolders(),

@@ -11,6 +11,7 @@ import { aboutHandlers } from "./about";
 import { addonsHandlers } from "./addons";
 import { installationsHandlers } from "./installations";
 import { launchHandlers } from "./launch";
+import { linkedGamesHandlers } from "./linkedGames";
 import { notificationsHandlers } from "./notifications";
 import { providersHandlers } from "./providers";
 import { settingsHandlers } from "./settings";
@@ -22,6 +23,7 @@ export function handlerTable(deps: HandlerDeps): HandlerTable {
     ...systemHandlers(deps),
     ...installationsHandlers(deps),
     ...launchHandlers(deps),
+    ...linkedGamesHandlers(deps),
     ...addonsHandlers(deps),
     ...providersHandlers(deps),
     ...settingsHandlers(deps),

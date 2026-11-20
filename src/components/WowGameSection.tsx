@@ -38,7 +38,7 @@ export function WowGameSection({
     return anchor.current ? attachLaunch(anchor.current, appId) : undefined;
   }, [appId, attachLaunch]);
 
-  // "Choose the WoW version from Play" off: no launch read, no launch lines.
+  // "Play starts WoW" off: no launch read, no launch lines.
   const launchMenu = useSyncExternalStore(settingsStore.subscribe, () =>
     steamLaunchMenuOn(settingsStore.get()),
   );

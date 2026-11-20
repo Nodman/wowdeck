@@ -82,6 +82,44 @@ export interface SteamGameLink {
   name: string;
 }
 
+/**
+ * How a linked game got on the list: detection found it, or the player
+ * added it. A game both found and added is found.
+ */
+export type LinkedGameSource = "found" | "added";
+
+/** GLOSSARY: Linked game. */
+export interface LinkedGame extends SteamGameLink {
+  source: LinkedGameSource;
+}
+
+/**
+ * The engine's one answer to "which Steam games get WoWDeck's section,
+ * badge and Play button" (linkedGames.get, linkedGames.changed).
+ */
+export type LinkedGames = {
+  /**
+   * Show in Steam (PluginSettings.steamEnabled). Off: Steam's pages show
+   * nothing of WoWDeck and every `launch.*` method treats every app id as
+   * unlinked. `games` is kept either way.
+   */
+  enabled: boolean;
+  /** One entry per app id, in app id order. */
+  games: LinkedGame[];
+  /**
+   * The found games the player removed (PluginSettings.steamRemovedGames),
+   * in the order removed: the Add a game picker lists them first, marked
+   * Removed.
+   */
+  removed: SteamGameLink[];
+};
+
+/** linkedGames.find's answer. */
+export type FoundGames = LinkedGames & {
+  /** The linked games this search brought back or found for the first time, in app id order. */
+  found: LinkedGame[];
+};
+
 export type InstallationPreferences = Partial<Pick<Installation, "autoUpdateEnabled" | "hidden">>;
 
 /** A World of Warcraft installation (one per game flavor). */
@@ -105,7 +143,11 @@ export interface Installation {
   selected: boolean;
   /** Product version string when discoverable, else null. */
   version: string | null;
-  /** Steam shortcuts proven to launch this installation by registry or executable discovery. */
+  /**
+   * Steam shortcuts proven to launch this installation by registry or
+   * executable discovery: detection evidence only. Whether a game is linked
+   * is `linkedGames.get`'s answer.
+   */
   steamGames?: SteamGameLink[];
 }
 
@@ -999,6 +1041,42 @@ export interface MethodMap {
     result: { icon: string | null };
   };
 
+  /** The linked games and Show in Steam. */
+  "linkedGames.get": {
+    params: Record<string, never>;
+    result: LinkedGames;
+  };
+  /**
+   * Link a game from Steam's library (app id and name). A removed game
+   * comes off the removed list and is found again; a game detection already
+   * found stays found; any other game is added. Fails when the state file
+   * can't take the change. Fires linkedGames.changed.
+   */
+  "linkedGames.add": {
+    params: SteamGameLink;
+    result: LinkedGames;
+  };
+  /**
+   * Unlink any linked game. A found game goes on the removed list
+   * (`steamRemovedGames`) and stays unlinked through later automatic scans
+   * and restarts; an added game is deleted. Fails when the app id isn't
+   * linked or the state file can't take the change. Fires
+   * linkedGames.changed.
+   */
+  "linkedGames.remove": {
+    params: { appId: number };
+    result: LinkedGames;
+  };
+  /**
+   * Find games: run the same detection as installations.detect, then clear
+   * the removed list, so every found game comes back. Answers with what
+   * came back or was found for the first time. Fires linkedGames.changed.
+   */
+  "linkedGames.find": {
+    params: Record<string, never>;
+    result: FoundGames;
+  };
+
   "installations.list": {
     params: Record<string, never>;
     result: { installations: Installation[] };
@@ -1377,6 +1455,10 @@ export interface MethodMap {
     params: { refresh?: boolean; manual?: boolean };
     result: { installations: Array<{ installationId: string; displayName: string; updates: number }> };
   };
+  /**
+   * Fails when the state file can't be written: the engine then keeps the
+   * settings it had, so an answer always matches what a restart reads.
+   */
   "settings.set": {
     params: { settings: Partial<PluginSettings> };
     result: { settings: PluginSettings };
@@ -1598,13 +1680,26 @@ export interface PluginSettings {
   /** How many automatic pre-restore safety backups to keep per game version (1-10). */
   wtfKeepSnapshots: number;
   /**
-   * The Steam library entry (usually a non-Steam shortcut) that launches WoW,
-   * picked in Options (BEYOND-05). Its game page shows the addon-updates
-   * section. Null leaves only automatic links, when enabled.
+   * Show in Steam (default on): the master switch for everything WoWDeck
+   * adds to Steam's pages and for `launch.*`. Off keeps the linked games.
+   * Replaces `steamAutoLink` (false there starts this off). Does not enable
+   * automatic updates.
    */
-  steamGame: { appId: number; name: string } | null;
-  /** Attach discovered WoW entries to their Steam game pages and home tiles. Does not enable automatic updates. */
-  steamAutoLink: boolean;
+  steamEnabled: boolean;
+  /**
+   * The games the player added (GLOSSARY: Linked game). Engine-written
+   * through linkedGames.add and linkedGames.remove, never settings.set.
+   * Replaces the hand-made `steamGame` link.
+   */
+  steamAddedGames: SteamGameLink[];
+  /**
+   * The found games the player removed: automatic scans leave them
+   * unlinked. Engine-written through linkedGames.remove, linkedGames.add
+   * (takes one off) and linkedGames.find (clears it), never settings.set.
+   * Every scan forgets added and removed games whose app id no longer
+   * appears in any Steam user's shortcuts.
+   */
+  steamRemovedGames: SteamGameLink[];
   /** Check for addon updates in the background when the linked game's page or tile appears (at most every 15 min). */
   steamAutoCheck: boolean;
   /** Badge on the linked game's tile on Steam's home screen; off = a kill switch if a Steam update breaks it. */
@@ -1900,6 +1995,8 @@ export type UpdateAllProgress = {
 
 export interface EventMap {
   "launch.completed": LaunchCompletion;
+  /** The linked games or Show in Steam changed: after a scan, an add, a remove or a switch change. */
+  "linkedGames.changed": LinkedGames;
   /** An automatic update ran and updated or failed something (WF-02). */
   "addons.autoUpdated": { result: AutoUpdateResult };
   "tradeskillmaster.changed": Record<string, never>;
