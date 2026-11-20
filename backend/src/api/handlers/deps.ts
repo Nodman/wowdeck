@@ -24,6 +24,8 @@ import type { About } from "../../about/About";
 
 export interface HandlerDeps {
   launch: import("../../wow/launch/LaunchService").LaunchService;
+  /** The linked games and Show in Steam (GLOSSARY: Linked game). */
+  linkedGames: import("../../wow/installation/LinkedGames").LinkedGameList;
   tsmData: import("../../wow/tsm/TradeSkillMasterData").TradeSkillMasterData;
   tsmAuth: import("../../wow/tsm/TradeSkillMasterAuth").TradeSkillMasterAuth;
   backendVersion: string;

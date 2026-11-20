@@ -172,6 +172,7 @@ mock.module("@decky/api", () => ({ toaster: { toast: () => {} } }));
 
 const { createSteamLaunchPatch, createSteamLaunchSwitch } = await import("./steamLaunchPatch");
 const { settingsStore } = await import("./settings");
+const { linkedGamesStore } = await import("./linkedGames");
 
 const battlenet: LaunchClient = {
   kind: "battlenet",
@@ -224,15 +225,16 @@ beforeEach(async () => {
     "settings.get": {
       settings: {
         ...defaultSettings(),
-        steamGame: { appId: 42, name: "WoW" },
         steamAutoCheck: false,
       },
     },
+    "linkedGames.get": { enabled: true, games: [{ appId: 42, name: "WoW", source: "found" }] },
     "launch.state": { state },
     "launch.icon": ({ targetId }) => ({ icon: targetId === "forever" ? FOREVER_ICON : null }),
   });
   disconnect = connectEngine(fake);
   await settingsStore.load();
+  await linkedGamesStore.load();
   root = createRoot(dom.window.document.getElementById("root")!);
   menuRoot = createRoot(dom.window.document.getElementById("menu")!);
   patch = createSteamLaunchPatch();

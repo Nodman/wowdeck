@@ -207,11 +207,39 @@ flavor, can identify the root. If that evidence points to more than one
 root or is absent, Steam's Play button stays as it is. The launch product
 and remembered client choice apply after the root is known.
 
-Discovery runs at engine startup and through Find WoW. The game-page section
-and home-tile badge use all detected links, alongside the existing manual
-picker. Options can disable automatic linking. Linking never changes
-`autoUpdate`, `steamAutoCheck` or `steamBadge`; automatic addon updates stay
-opt-in, and existing user choices remain in effect.
+Discovery runs at engine startup and through Find WoW. Its links are
+evidence only. `LinkedGameList` (`backend/src/wow/installation/LinkedGames.ts`)
+builds the linked games (GLOSSARY: Linked game) on every read from two
+sources:
+
+- **Found automatically.** Every Steam game a scan linked to an
+  installation, hidden installations included.
+- **Added by you.** The games the player picked in Options
+  (`steamAddedGames`, changed only through `linkedGames.add` and
+  `linkedGames.remove`). Adding a game a scan already found adds nothing.
+
+The list holds one entry per app id. A game that is both found and added
+counts as found. `linkedGames.get` returns the list together with Show in
+Steam (`steamEnabled`). `linkedGames.changed` fires after every scan, add
+and remove, and whenever Show in Steam changes.
+
+One engine check, `LinkedGameList.isLinked`, decides whether an app id is
+linked right now, and Show in Steam off makes every app id unlinked. The
+launch code calls it before it resolves a launch entry, so `launch.state`,
+`launch.select`, `launch.start` and `launch.icon` treat a game that isn't
+linked like any other Steam game. That includes every game while Show in
+Steam is off. An added Battle.net shortcut gets Play's version choice like
+a found one. Turning Show in Steam off keeps the list, so turning it
+back on restores everything.
+
+On the first load of a state file from before linked games, the engine
+converts the old settings once. It drops a hand-made `steamGame` that a scan
+had also found, as a duplicate. Any other hand-made `steamGame` becomes an
+added game. `steamAutoLink: false` starts Show in Steam off.
+
+Linking never changes `autoUpdate`, `steamAutoCheck` or `steamBadge`.
+Automatic addon updates stay opt-in, and the player's other choices stay as
+they were.
 
 Detector tests construct synthetic binary `shortcuts.vdf` fixtures in
 temporary homes. They cover multiple users, both Steam locations, executable

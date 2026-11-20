@@ -13,6 +13,7 @@ mock.module("@decky/api", () => ({ toaster: { toast: () => {} } }));
 
 const { WowPlayMenu } = await import("./components/WowPlayButton");
 const { settingsStore } = await import("./settings");
+const { linkedGamesStore } = await import("./linkedGames");
 const { steamLaunchState } = await import("./steamLaunchActions");
 
 // Steam's "Play from…" menu as the Deck renders it: one row per client.
@@ -87,10 +88,10 @@ test("picking a row selects it and switches Steam back to this Deck, leaving My 
     "settings.get": {
       settings: {
         ...defaultSettings(),
-        steamGame: { appId: 42, name: "WoW" },
         steamAutoCheck: false,
       },
     },
+    "linkedGames.get": { enabled: true, games: [{ appId: 42, name: "WoW", source: "found" }] },
     "launch.state": { state },
     "launch.select": ({ targetId }) => ({
       target: state.clients.find((client) => client.id === targetId)!,
@@ -108,6 +109,7 @@ test("picking a row selects it and switches Steam back to this Deck, leaving My 
 
   try {
     await settingsStore.load();
+    await linkedGamesStore.load();
     await act(async () => {
       root.render(<WowPlayMenu appId={42} state={state} steamMenu={steamMenu} localSelected />);
     });
@@ -155,10 +157,10 @@ test("while open, our rows follow the launch state but Steam's menu never update
     "settings.get": {
       settings: {
         ...defaultSettings(),
-        steamGame: { appId: 42, name: "WoW" },
         steamAutoCheck: false,
       },
     },
+    "linkedGames.get": { enabled: true, games: [{ appId: 42, name: "WoW", source: "found" }] },
     "launch.state": () => ({ state: current }),
   });
   const disconnect = connectEngine(fake);
@@ -171,6 +173,7 @@ test("while open, our rows follow the launch state but Steam's menu never update
   };
   try {
     await settingsStore.load();
+    await linkedGamesStore.load();
     await act(async () => {
       root.render(<WowPlayMenu appId={42} state={state} steamMenu={countingMenu} localSelected />);
     });
@@ -179,6 +182,7 @@ test("while open, our rows follow the launch state but Steam's menu never update
     await act(async () => {
       await steamLaunchState.refresh("42");
       await settingsStore.load();
+      await linkedGamesStore.load();
     });
     expect(renders).toBe(before);
     const checked = [...container.querySelectorAll('[role="menuitem"]')].filter((item) =>

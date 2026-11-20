@@ -4,13 +4,13 @@
  * returns.
  * Fails as: no tile found -> no badge; nothing else changes.
  * Kill switch: Options -> Steam library -> "Show a badge on its tile"
- * (settings.steamBadge).
+ * (settings.steamBadge), or Show in Steam (settings.steamEnabled).
  */
 
 import { findSP } from "@decky/ui";
 import { STEAM } from "../steamTheme";
-import { badgeState, linkedSteamGames, type BadgeState } from "../steamLibrary";
-import { addonSession } from "../session";
+import { badgeState, type BadgeState } from "../steamLibrary";
+import { linkedGamesStore, shownLinkedGames } from "../linkedGames";
 import { settingsStore } from "../settings";
 import { steamUpdates } from "../steamUpdates";
 
@@ -151,8 +151,8 @@ export function startHomeBadge(): () => void {
       if (!doc) {
         return;
       }
-      const { steamGame, steamAutoLink, steamBadge: badge } = settingsStore.get().settings;
-      const games = linkedSteamGames(addonSession.get().installations, steamGame, steamAutoLink);
+      const badge = settingsStore.get().settings.steamBadge;
+      const games = shownLinkedGames(settingsStore.get(), linkedGamesStore.get());
       const tiles = badge ? games.flatMap((game) => findTiles(doc!, game.appId)) : [];
       const { summary, checking } = steamUpdates.get();
       const state = tiles.length ? badgeState(summary, checking) : null;
@@ -196,12 +196,10 @@ export function startHomeBadge(): () => void {
   }
   // A new game or a badge switched on counts its tiles as appearing again;
   // any other setting leaves them alone.
-  const steamKey = () => {
-    const { steamGame, steamAutoLink, steamBadge } = settingsStore.get().settings;
-    return `${linkedSteamGames(addonSession.get().installations, steamGame, steamAutoLink)
+  const steamKey = () =>
+    `${shownLinkedGames(settingsStore.get(), linkedGamesStore.get())
       .map((g) => g.appId)
-      .join(",")}:${steamBadge}`;
-  };
+      .join(",")}:${settingsStore.get().settings.steamBadge}`;
   let lastSteamKey = steamKey();
   const linksChanged = () => {
     if (steamKey() === lastSteamKey) {
@@ -212,14 +210,14 @@ export function startHomeBadge(): () => void {
     schedule();
   };
   const offSettings = settingsStore.subscribe(linksChanged);
-  const offInstallations = addonSession.subscribe(linksChanged);
+  const offLinkedGames = linkedGamesStore.subscribe(linksChanged);
   const offUpdates = steamUpdates.subscribe(schedule);
   schedule();
 
   return () => {
     observer?.disconnect();
     offSettings();
-    offInstallations();
+    offLinkedGames();
     offUpdates();
     if (timer) {
       clearTimeout(timer);

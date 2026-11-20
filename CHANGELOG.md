@@ -12,6 +12,7 @@ What's new in each version of WoWDeck Addon Manager. The format follows
 
 ### Fixed
 
+- Turning off Steam linking in Options now hides WoWDeck on every game page, and Play's version choice works on games you picked yourself.
 - Sources no longer says a revoked TradeSkillMaster account stays signed in.
 
 - The on-screen keyboard closes when TradeSkillMaster sign-in finishes or is cancelled, and when CurseForge key entry closes.

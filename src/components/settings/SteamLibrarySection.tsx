@@ -4,34 +4,24 @@ import { Field, PanelSection, ToggleField } from "@decky/ui";
 
 import { descriptionStyle } from "../../steamTheme";
 import { settingsStore } from "../../settings";
-import type { SteamGame } from "../../steamLibrary";
+import { linkedGamesStore } from "../../linkedGames";
 import { openSteamGamePicker } from "../SteamGamePicker";
 import { SettingsRow } from "./common";
-import { addonSession } from "../../session";
-import { linkedSteamGames } from "../../steamLibrary";
 
-/** BEYOND-05: the WoW entry in Steam's library gets an addons section on its game page. */
+/**
+ * BEYOND-05: linked games get an addons section on their game page. The
+ * toggle is Show in Steam; the picker adds a game and unlinks an added one
+ * (linkedGamesStore, the engine's list).
+ */
 export function SteamLibrarySection() {
   const { settings } = useSyncExternalStore(settingsStore.subscribe, settingsStore.get);
-  const { installations } = useSyncExternalStore(addonSession.subscribe, addonSession.get);
-  const linked = linkedSteamGames(installations, settings.steamGame, settings.steamAutoLink);
-  const linkedSteamGame = settings.steamGame;
-  const linkSteamGame = (game: SteamGame | null) =>
-    settingsStore.save(
-      { steamGame: game },
-      game
-        ? ["Linked to Steam", `${game.name}'s game page and tile show addon updates`]
-        : [
-            "Manual Steam link removed",
-            settings.steamAutoLink
-              ? "Detected games remain linked"
-              : "No game page shows addon updates",
-          ],
-    );
+  const { linked } = useSyncExternalStore(linkedGamesStore.subscribe, linkedGamesStore.get);
+  const games = linked.games;
+  const added = games.find((game) => game.source === "added");
 
   return (
     <PanelSection title="Steam library">
-      <SettingsRow id="steamAutoLink">
+      <SettingsRow id="steamEnabled">
         <ToggleField
           label="Link detected Steam games"
           description={
@@ -39,38 +29,35 @@ export function SteamLibrarySection() {
               Show addon updates on detected WoW and Battle.net game pages and home tiles
             </span>
           }
-          checked={settings.steamAutoLink}
-          onChange={(on) => void settingsStore.save({ steamAutoLink: on })}
+          checked={settings.steamEnabled}
+          onChange={(on) => void settingsStore.save({ steamEnabled: on })}
         />
       </SettingsRow>
-      <SettingsRow id="steamGame">
+      <SettingsRow id="steamAddedGames">
         <Field
           focusable
           label="World of Warcraft in Steam"
           description={
             <span style={descriptionStyle}>
-              {linkedSteamGame
-                ? `${linkedSteamGame.name}: its game page and tile show addon updates`
-                : linked.length > 0
-                  ? `${linked.length} detected Steam entries linked. Pick another entry to link manually`
+              {added
+                ? `${added.name}: its game page and tile show addon updates`
+                : games.length > 0
+                  ? `${games.length} detected Steam entries linked. Pick another entry to link manually`
                   : "Pick its library entry (WoW or Battle.net) to show addon updates there"}
             </span>
           }
           onClick={() =>
             openSteamGamePicker(
-              {
-                manual: linkedSteamGame,
-                detected: linkedSteamGames(installations, null),
-                autoLinkOn: settings.steamAutoLink,
-              },
-              (g) => void linkSteamGame(g),
+              games,
+              (game) => void linkedGamesStore.add(game),
+              (game) => void linkedGamesStore.remove(game),
             )
           }
         >
           <RowChevron />
         </Field>
       </SettingsRow>
-      {linked.length > 0 && (
+      {games.length > 0 && (
         <>
           <SettingsRow id="steamAutoCheck">
             <ToggleField

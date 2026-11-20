@@ -82,6 +82,32 @@ export interface SteamGameLink {
   name: string;
 }
 
+/**
+ * How a linked game got on the list: detection found it, or the player
+ * added it. A game both found and added is found.
+ */
+export type LinkedGameSource = "found" | "added";
+
+/** GLOSSARY: Linked game. */
+export interface LinkedGame extends SteamGameLink {
+  source: LinkedGameSource;
+}
+
+/**
+ * The engine's one answer to "which Steam games get WoWDeck's section,
+ * badge and Play button" (linkedGames.get, linkedGames.changed).
+ */
+export type LinkedGames = {
+  /**
+   * Show in Steam (PluginSettings.steamEnabled). Off: Steam's pages show
+   * nothing of WoWDeck and every `launch.*` method treats every app id as
+   * unlinked. `games` is kept either way.
+   */
+  enabled: boolean;
+  /** One entry per app id, in app id order. */
+  games: LinkedGame[];
+};
+
 export type InstallationPreferences = Partial<Pick<Installation, "autoUpdateEnabled" | "hidden">>;
 
 /** A World of Warcraft installation (one per game flavor). */
@@ -105,7 +131,11 @@ export interface Installation {
   selected: boolean;
   /** Product version string when discoverable, else null. */
   version: string | null;
-  /** Steam shortcuts proven to launch this installation by registry or executable discovery. */
+  /**
+   * Steam shortcuts proven to launch this installation by registry or
+   * executable discovery: detection evidence only. Whether a game is linked
+   * is `linkedGames.get`'s answer.
+   */
   steamGames?: SteamGameLink[];
 }
 
@@ -999,6 +1029,25 @@ export interface MethodMap {
     result: { icon: string | null };
   };
 
+  /** The linked games and Show in Steam. */
+  "linkedGames.get": {
+    params: Record<string, never>;
+    result: LinkedGames;
+  };
+  /**
+   * Link a game from Steam's library (app id and name). A game detection
+   * already found stays found. Fires linkedGames.changed.
+   */
+  "linkedGames.add": {
+    params: SteamGameLink;
+    result: LinkedGames;
+  };
+  /** Unlink a game the player added. Fires linkedGames.changed. */
+  "linkedGames.remove": {
+    params: { appId: number };
+    result: LinkedGames;
+  };
+
   "installations.list": {
     params: Record<string, never>;
     result: { installations: Installation[] };
@@ -1598,13 +1647,18 @@ export interface PluginSettings {
   /** How many automatic pre-restore safety backups to keep per game version (1-10). */
   wtfKeepSnapshots: number;
   /**
-   * The Steam library entry (usually a non-Steam shortcut) that launches WoW,
-   * picked in Options (BEYOND-05). Its game page shows the addon-updates
-   * section. Null leaves only automatic links, when enabled.
+   * Show in Steam (default on): the master switch for everything WoWDeck
+   * adds to Steam's pages and for `launch.*`. Off keeps the linked games.
+   * Replaces `steamAutoLink` (false there starts this off). Does not enable
+   * automatic updates.
    */
-  steamGame: { appId: number; name: string } | null;
-  /** Attach discovered WoW entries to their Steam game pages and home tiles. Does not enable automatic updates. */
-  steamAutoLink: boolean;
+  steamEnabled: boolean;
+  /**
+   * The games the player added (GLOSSARY: Linked game). Engine-written
+   * through linkedGames.add and linkedGames.remove, never settings.set.
+   * Replaces the hand-made `steamGame` link.
+   */
+  steamAddedGames: SteamGameLink[];
   /** Check for addon updates in the background when the linked game's page or tile appears (at most every 15 min). */
   steamAutoCheck: boolean;
   /** Badge on the linked game's tile on Steam's home screen; off = a kill switch if a Steam update breaks it. */
@@ -1900,6 +1954,8 @@ export type UpdateAllProgress = {
 
 export interface EventMap {
   "launch.completed": LaunchCompletion;
+  /** The linked games or Show in Steam changed: after a scan, an add, a remove or a switch change. */
+  "linkedGames.changed": LinkedGames;
   /** An automatic update ran and updated or failed something (WF-02). */
   "addons.autoUpdated": { result: AutoUpdateResult };
   "tradeskillmaster.changed": Record<string, never>;

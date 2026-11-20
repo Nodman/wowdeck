@@ -21,9 +21,9 @@ import {
   listSteamShortcuts,
   pickerRowMarker,
   steamShortcutIcon,
-  type PickerLinks,
   type SteamGame,
 } from "../steamLibrary";
+import type { LinkedGame } from "../../backend/src/api/contracts";
 
 /** Rows shown at once; libraries with 800+ shortcuts narrow down by typing. */
 const MAX_ROWS = 40;
@@ -92,17 +92,20 @@ function useShortcutIcons(shown: SteamGame[]): ReadonlyMap<number, string> {
 /**
  * Pick the Steam library entry that launches WoW (BEYOND-05): one text row
  * to narrow down (S28), then the non-Steam shortcuts as rows, likely WoW
- * entries first (WoW itself, or the Battle.net launcher people add); A links one. "Unlink" when one is linked; B leaves it as
- * it was. The panel is unmounted while this is open (G4): the choice goes
- * through `onPick`, which saves it to settings and module state.
+ * entries first (WoW itself, or the Battle.net launcher people add); A links
+ * one beside the games already linked. "Unlink" for each game the player
+ * added; B leaves it as it was. The panel is unmounted while this is open
+ * (G4): `onPick` and `onUnlink` go to the engine (linkedGamesStore).
  */
 function SteamGamePicker({
-  links,
+  linked,
   onPick,
+  onUnlink,
   closeModal,
 }: {
-  links: PickerLinks;
-  onPick: (game: SteamGame | null) => void;
+  linked: LinkedGame[];
+  onPick: (game: SteamGame) => void;
+  onUnlink: (game: SteamGame) => void;
   closeModal?: () => void;
 }) {
   const [query, setQuery] = useState("");
@@ -110,10 +113,15 @@ function SteamGamePicker({
   const matches = filterSteamGames(all, query);
   const shown = matches.slice(0, MAX_ROWS);
   const icons = useShortcutIcons(shown);
-  const pick = (game: SteamGame | null) => {
+  const pick = (game: SteamGame) => {
     onPick(game);
     closeModal?.();
   };
+  const unlink = (game: SteamGame) => {
+    onUnlink(game);
+    closeModal?.();
+  };
+  const added = linked.filter((game) => game.source === "added");
   return (
     <ModalRoot onCancel={closeModal} closeModal={closeModal}>
       <DialogHeader>World of Warcraft in Steam</DialogHeader>
@@ -143,7 +151,7 @@ function SteamGamePicker({
                 key={g.appId}
                 game={g}
                 icon={icons.get(g.appId)}
-                links={links}
+                linked={linked}
                 onPick={pick}
               />
             ))}
@@ -156,10 +164,14 @@ function SteamGamePicker({
           </DialogControlsSection>
         </ScrollBuffer>
       </DialogBody>
-      {links.manual && (
+      {added.length > 0 && (
         <DialogFooter>
           <Focusable flow-children="row" className="DialogTwoColLayout _DialogColLayout">
-            <DialogButton onClick={() => pick(null)}>Unlink {links.manual.name}</DialogButton>
+            {added.map((game) => (
+              <DialogButton key={game.appId} onClick={() => unlink(game)}>
+                Unlink {game.name}
+              </DialogButton>
+            ))}
             <DialogButton onClick={closeModal}>Cancel</DialogButton>
           </Focusable>
         </DialogFooter>
@@ -175,15 +187,15 @@ function SteamGamePicker({
 function SteamGameRow({
   game,
   icon,
-  links,
+  linked,
   onPick,
 }: {
   game: SteamGame;
   icon?: string;
-  links: PickerLinks;
+  linked: LinkedGame[];
   onPick: (game: SteamGame) => void;
 }) {
-  const marker = pickerRowMarker(game, links);
+  const marker = pickerRowMarker(game, linked);
   return (
     <Field
       focusable
@@ -237,12 +249,13 @@ function IconSlot({ icon }: { icon?: string }) {
 }
 
 export function openSteamGamePicker(
-  links: PickerLinks,
-  onPick: (game: SteamGame | null) => void,
+  linked: LinkedGame[],
+  onPick: (game: SteamGame) => void,
+  onUnlink: (game: SteamGame) => void,
 ): void {
   const close = () => modalResult.Close();
   const modalResult = showModal(
-    <SteamGamePicker links={links} onPick={onPick} closeModal={close} />,
+    <SteamGamePicker linked={linked} onPick={onPick} onUnlink={onUnlink} closeModal={close} />,
     window,
     { strTitle: "World of Warcraft in Steam", bHideMainWindowForPopouts: false },
   );

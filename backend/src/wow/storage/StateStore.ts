@@ -6,7 +6,7 @@
 import { join } from "node:path";
 import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import type { PluginSettings } from "../../api/contracts";
-import { defaultSettings, normalizeStoredSettings } from "./settings";
+import { defaultSettings, migrateLegacySteamSettings, normalizeStoredSettings } from "./settings";
 import type { WowAddon, WowInstallation } from "../models";
 import { AddonRecords, type AddonCommitEvidence, type AddonRecordsState, normalizeCommitEvidence } from "../addons/AddonRecords";
 import { realStageFs, type FsStage, type StageFs } from "../fs/StageFs";
@@ -70,10 +70,16 @@ export class StateStore {
       // here so the next save doesn't write them back. Settings keep only
       // known keys, each made valid (settings.ts).
       type LegacyAddon = WowAddon & { autoUpdateEnabled?: unknown };
+      const installations = parsed.installations ?? [];
+      // Read defensively: a throw here would read as a damaged file.
+      const found = new Set(
+        (Array.isArray(installations) ? installations : []).flatMap((i) =>
+          Array.isArray(i?.steamGames) ? i.steamGames.map((game) => game?.appId) : []),
+      ) as ReadonlySet<number>;
       this.#state = {
-        installations: parsed.installations ?? [],
+        installations,
         addons: (parsed.addons ?? []).map(({ autoUpdateEnabled: _auto, ...addon }: LegacyAddon) => addon),
-        settings: normalizeStoredSettings(parsed.settings),
+        settings: normalizeStoredSettings(migrateLegacySteamSettings(parsed.settings, found)),
         ...commitsFrom(parsed.addonCommits),
         ...transactionsFrom(parsed.addonTransactions),
         ...(typeof parsed.deviceId === "string" && parsed.deviceId ? { deviceId: parsed.deviceId } : {}),

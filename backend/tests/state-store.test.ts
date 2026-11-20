@@ -19,8 +19,10 @@ describe("StateStore with a state file from an older build", () => {
     const { store } = loadFixtureStore();
     const state = store.load();
 
-    const { ignoredAddons: _ignored, ...settings } = raw.settings;
+    const { ignoredAddons: _ignored, steamGame, ...settings } = raw.settings;
     expect(state.settings).toMatchObject(settings);
+    // The hand-made link no installation found becomes an added game.
+    expect(state.settings.steamAddedGames).toEqual([steamGame]);
     expect(state.installations).toEqual(raw.installations);
     expect(state.addons).toHaveLength(raw.addons.length);
     raw.addons.forEach((addon: Record<string, unknown>, i: number) => {
@@ -34,6 +36,7 @@ describe("StateStore with a state file from an older build", () => {
     const { store, path } = loadFixtureStore();
     const state = store.load();
     expect(state.settings).not.toHaveProperty("ignoredAddons");
+    expect(state.settings).not.toHaveProperty("steamGame");
     for (const addon of state.addons) {
       expect(addon).not.toHaveProperty("autoUpdateEnabled");
     }
@@ -42,6 +45,7 @@ describe("StateStore with a state file from an older build", () => {
     const saved = readFileSync(path, "utf-8");
     expect(saved).not.toContain("ignoredAddons");
     expect(saved).not.toContain("autoUpdateEnabled");
+    expect(saved).not.toContain("steamGame\"");
   });
 });
 

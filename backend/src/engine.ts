@@ -2,6 +2,7 @@ import { InstallationDetector } from "./wow/installation/InstallationDetector";
 import { LaunchService, type LaunchWorld } from "./wow/launch/LaunchService";
 import { localLaunchWorld } from "./wow/launch/LaunchProcesses";
 import { resolveLaunchEntry } from "./wow/launch/LaunchEntries";
+import { LinkedGameList } from "./wow/installation/LinkedGames";
 /**
  * The engine's assembly: every service the RPC handlers use, wired from one
  * configuration, and the startup that runs before the first request.
@@ -312,16 +313,25 @@ export function assembleEngine(config: EngineConfig): Engine & { start(): Promis
     };
   }
 
+  const linkedGames = new LinkedGameList(
+    store,
+    () => installationService.list(),
+    (games) => server.emit("linkedGames.changed", games),
+  );
   const steam = new InstallationDetector({ homeDir });
   const launch = new LaunchService(
-    (appId, preferredId) => resolveLaunchEntry(
-      appId, installationService.listed(), steam, preferredId ?? store.settings.steamLaunchTargets[appId],
-    ),
+    // Only a linked game's page launches through WoWDeck (Show in Steam on).
+    async (appId, preferredId) => linkedGames.isLinked(appId)
+      ? resolveLaunchEntry(
+        appId, installationService.listed(), steam, preferredId ?? store.settings.steamLaunchTargets[appId],
+      )
+      : null,
     config.launchWorld ?? localLaunchWorld(homeDir, () => steam.steamHomes()),
     (completion) => server.emit("launch.completed", completion),
   );
   const deps: HandlerDeps = {
     launch,
+    linkedGames,
     tsmAuth,
     tsmData,
     backendVersion,
@@ -371,6 +381,9 @@ export function assembleEngine(config: EngineConfig): Engine & { start(): Promis
     // so the answer isn't held up by every installation's provider calls.
     // The startup scan above starts no check (see this function's comment).
     installationService.foundListeners.add(() => void addonUpdates.checkAll());
+    // The frontend reads the linked games once the engine serves; later
+    // scans tell it what changed.
+    installationService.foundListeners.add(() => linkedGames.scanned());
     // Heal what an interrupted backup or restore left behind (engine
     // killed mid-job, power loss, sleep), in every installation just found.
     try {

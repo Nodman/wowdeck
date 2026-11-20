@@ -546,14 +546,6 @@ describe("settings.set, key by key", () => {
     expect((await set({ wtfBackupDir: "" })).wtfBackupDir).toBeNull();
   });
 
-  test("the Steam game is normalized", async () => {
-    expect((await set({ steamGame: { appId: 42, name: "  World of Warcraft " } })).steamGame).toEqual({
-      appId: 42,
-      name: "World of Warcraft",
-    });
-    expect((await set({ steamGame: { appId: "42", name: "x" } })).steamGame).toBeNull();
-  });
-
   test("engine-owned keys are never taken from the UI", async () => {
     const before = await set({});
     const after = await set({

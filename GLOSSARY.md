@@ -314,8 +314,16 @@ The Battle.net ID that selects a game version without starting it, for example
 `wow_classic_era`. The player still presses Play in Battle.net.
 _Avoid_: product code, launch UID
 
+**Linked game**:
+A Steam library game WoWDeck adds addon updates and Play to: the section on
+its game page, the badge on its tile and the WoW version choice on Play.
+WoWDeck either found it automatically or the player added it. The engine
+keeps the one list, and the UI and the launch code both read it. With Show
+in Steam off, no game counts as linked, but WoWDeck keeps the list.
+_Avoid_: manual link, Steam link, detected link, Steam entry
+
 **Launch target**:
-What Play starts on a linked Battle.net shortcut's game page: Battle.net
+What Play starts on a linked game that is a Battle.net shortcut: Battle.net
 itself, Retail, Classic or Forever. Each WoW row shows only when Battle.net
 lists its client as installed in the shortcut's prefix. Classic is one row
 for Mists of Pandaria Classic, Classic Era and Anniversary. It is saved per

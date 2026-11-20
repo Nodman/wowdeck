@@ -1,0 +1,88 @@
+import type { LinkedGame, LinkedGames, SteamGameLink } from "../backend/src/api/contracts";
+import { engine } from "./engineLink";
+import { errorText } from "./errors";
+import type { Rpc } from "./services/envelope";
+import type { SettingsState } from "./settingsStore";
+import { createStore, type Store } from "./store";
+import { pluginToast } from "./toast";
+
+/**
+ * The linked games (GLOSSARY: Linked game) as the engine answers them, and
+ * Show in Steam. Module scope: Steam's pages read it while the QAM is
+ * closed, and the engine's `linkedGames.changed` keeps it current.
+ */
+export interface LinkedGamesState {
+  linked: LinkedGames;
+  /** The engine answered at least once: until then Steam's pages show nothing of WoWDeck. */
+  loaded: boolean;
+}
+
+export interface LinkedGamesStore extends Pick<Store<LinkedGamesState>, "get" | "subscribe"> {
+  /** Read the engine's list; an engine that is not ready keeps what is shown. */
+  load(): Promise<void>;
+  /** The engine's `linkedGames.changed`. */
+  changed(linked: LinkedGames): void;
+  /** Link a game from Steam's library; toasts the outcome. Resolves to whether it was linked. */
+  add(game: SteamGameLink): Promise<boolean>;
+  /** Unlink a game the player added; toasts the outcome. Resolves to whether it was unlinked. */
+  remove(game: SteamGameLink): Promise<boolean>;
+}
+
+export function createLinkedGamesStore(deps: {
+  rpc: Rpc;
+  toast(title: string, body: string): void;
+}): LinkedGamesStore {
+  const store = createStore<LinkedGamesState>({
+    linked: { enabled: false, games: [] },
+    loaded: false,
+  });
+  const replace = (linked: LinkedGames) => store.set({ linked, loaded: true });
+  return {
+    get: store.get,
+    subscribe: store.subscribe,
+    async load() {
+      try {
+        replace(await deps.rpc("linkedGames.get"));
+      } catch {
+        // engine not ready
+      }
+    },
+    changed: replace,
+    async add(game) {
+      try {
+        replace(await deps.rpc("linkedGames.add", { appId: game.appId, name: game.name }));
+      } catch (e) {
+        deps.toast(`Couldn't link ${game.name}`, errorText(e));
+        return false;
+      }
+      deps.toast("Linked to Steam", `${game.name}'s game page and tile show addon updates`);
+      return true;
+    },
+    async remove(game) {
+      try {
+        replace(await deps.rpc("linkedGames.remove", { appId: game.appId }));
+      } catch (e) {
+        deps.toast(`Couldn't unlink ${game.name}`, errorText(e));
+        return false;
+      }
+      deps.toast(
+        "Steam link removed",
+        `${game.name}'s game page and tile no longer show addon updates`,
+      );
+      return true;
+    },
+  };
+}
+
+/**
+ * The games Steam's pages show WoWDeck on right now: none until both the
+ * settings and the linked games have loaded, none while Show in Steam is off.
+ */
+export function shownLinkedGames(settings: SettingsState, linked: LinkedGamesState): LinkedGame[] {
+  return settings.loaded && linked.loaded && linked.linked.enabled ? linked.linked.games : [];
+}
+
+/** The one linked-games store, wired to the engine. */
+export const linkedGamesStore = createLinkedGamesStore({ rpc: engine.rpc, toast: pluginToast });
+
+engine.events.on("linkedGames.changed", linkedGamesStore.changed);
