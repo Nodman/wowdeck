@@ -91,7 +91,10 @@ never suggest the next ticket while one is dangling.
 
 `CHANGELOG.md` is the players' release notes. Before editing it, read
 `docs/changelog.md`. Add the line in the commit that makes the change
-visible.
+visible. One feature gets one line, however many tickets build it: a later
+ticket of the same feature edits that line instead of adding one. Before
+`/pr`, check that the branch's `CHANGELOG.md` diff has one line per feature
+or fix it ships.
 
 ## Branching and merging
 
