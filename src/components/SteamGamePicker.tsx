@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   DialogBody,
   DialogControlsSection,
@@ -11,16 +11,19 @@ import {
 import { TextRow } from "./TextRow";
 import { ScrollBuffer } from "./ScrollBuffer";
 import { wowupModalStyleCss } from "../sharedStyles";
-import { STEAM, descriptionStyle } from "../steamTheme";
+import { descriptionStyle } from "../steamTheme";
 import {
   filterSteamGames,
   likelyWowFirst,
   listSteamShortcuts,
-  pickerRowMarker,
+  pickerGames,
   steamShortcutIcon,
+  type PickerGame,
   type SteamGame,
 } from "../steamLibrary";
-import type { LinkedGame } from "../../backend/src/api/contracts";
+import { linkedGamesStore } from "../linkedGames";
+
+const TITLE = "Add a game";
 
 /** Rows shown at once; libraries with 800+ shortcuts narrow down by typing. */
 const MAX_ROWS = 40;
@@ -87,34 +90,28 @@ function useShortcutIcons(shown: SteamGame[]): ReadonlyMap<number, string> {
 }
 
 /**
- * Pick the Steam library entry that launches WoW (BEYOND-05): one text row
- * to narrow down (S28), then the non-Steam shortcuts as rows, likely WoW
- * entries first (WoW itself, or the Battle.net launcher people add); A links
- * one beside the games already linked; B leaves it as it was. Removing a
- * linked game is the Steam library modal's job. The panel is unmounted while
- * this is open (G4): `onPick` goes to the engine (linkedGamesStore).
+ * Add a game (BEYOND-05, #291), stacked on the Steam library modal: one
+ * text row to narrow down (S28), then the non-Steam shortcuts that aren't
+ * linked, removed ones first and marked, likely WoW entries (WoW itself,
+ * or the Battle.net launcher people add) next. A adds one beside the games
+ * already linked, through the engine (linkedGamesStore, G4); B leaves
+ * everything as it was. Steam's library is read when it opens.
  */
-function SteamGamePicker({
-  linked,
-  onPick,
-  closeModal,
-}: {
-  linked: LinkedGame[];
-  onPick: (game: SteamGame) => void;
-  closeModal?: () => void;
-}) {
+function SteamGamePicker({ closeModal }: { closeModal?: () => void }) {
   const [query, setQuery] = useState("");
   const [all] = useState(readShortcuts);
-  const matches = filterSteamGames(all, query);
+  const { linked } = useSyncExternalStore(linkedGamesStore.subscribe, linkedGamesStore.get);
+  const candidates = pickerGames(all, linked);
+  const matches = filterSteamGames(candidates, query);
   const shown = matches.slice(0, MAX_ROWS);
   const icons = useShortcutIcons(shown);
   const pick = (game: SteamGame) => {
-    onPick(game);
+    void linkedGamesStore.add({ appId: game.appId, name: game.name });
     closeModal?.();
   };
   return (
     <ModalRoot onCancel={closeModal} closeModal={closeModal}>
-      <DialogHeader>World of Warcraft in Steam</DialogHeader>
+      <DialogHeader>{TITLE}</DialogHeader>
       <DialogBody>
         <style>{wowupModalStyleCss()}</style>
         <ScrollBuffer>
@@ -133,17 +130,14 @@ function SteamGamePicker({
                 }
               />
             )}
-            {all.length > 0 && matches.length === 0 && (
+            {all.length > 0 && candidates.length === 0 && (
+              <Field label="Every non-Steam game is linked" />
+            )}
+            {candidates.length > 0 && matches.length === 0 && (
               <Field label={`Nothing matches “${query}”`} />
             )}
             {shown.map((g) => (
-              <SteamGameRow
-                key={g.appId}
-                game={g}
-                icon={icons.get(g.appId)}
-                linked={linked}
-                onPick={pick}
-              />
+              <SteamGameRow key={g.appId} game={g} icon={icons.get(g.appId)} onPick={pick} />
             ))}
             {matches.length > MAX_ROWS && (
               <Field
@@ -159,21 +153,19 @@ function SteamGamePicker({
 }
 
 /**
- * One shortcut: its icon (or a blank slot), then its name over its app id and
- * link marker. The marker goes last so every app id lines up; A links it.
+ * One shortcut: its icon (or a blank slot), then its name over its app id
+ * and, for a removed game, "Removed". The marker goes last so every app id
+ * lines up; A adds it.
  */
 function SteamGameRow({
   game,
   icon,
-  linked,
   onPick,
 }: {
-  game: SteamGame;
+  game: PickerGame;
   icon?: string;
-  linked: LinkedGame[];
   onPick: (game: SteamGame) => void;
 }) {
-  const marker = pickerRowMarker(game, linked);
   return (
     <Field
       focusable
@@ -184,22 +176,13 @@ function SteamGameRow({
             <span data-row-name>{game.name}</span>
             <span data-row-description style={descriptionStyle}>
               App {game.appId}
-              {marker && (
-                <>
-                  {" · "}
-                  <span
-                    style={marker === "Currently linked" ? { color: STEAM.positive } : undefined}
-                  >
-                    {marker}
-                  </span>
-                </>
-              )}
+              {game.removed && " · Removed"}
             </span>
           </span>
         </span>
       }
       onClick={() => onPick(game)}
-      onOKActionDescription="Link"
+      onOKActionDescription="Add"
     />
   );
 }
@@ -226,11 +209,18 @@ function IconSlot({ icon }: { icon?: string }) {
   );
 }
 
-export function openSteamGamePicker(linked: LinkedGame[], onPick: (game: SteamGame) => void): void {
-  const close = () => modalResult.Close();
-  const modalResult = showModal(
-    <SteamGamePicker linked={linked} onPick={onPick} closeModal={close} />,
-    window,
-    { strTitle: "World of Warcraft in Steam", bHideMainWindowForPopouts: false },
-  );
+/**
+ * Open Add a game on top of the Steam library modal. Closing it (B, touch
+ * or a pick) calls `onClose`, which puts focus back on the row that opened
+ * it (S36).
+ */
+export function openSteamGamePicker(onClose: () => void): void {
+  const close = () => {
+    modalResult.Close();
+    onClose();
+  };
+  const modalResult = showModal(<SteamGamePicker closeModal={close} />, window, {
+    strTitle: TITLE,
+    bHideMainWindowForPopouts: false,
+  });
 }

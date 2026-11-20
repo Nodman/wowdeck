@@ -75,14 +75,14 @@ test("the section renders nothing until both the settings and the linked games h
   expect(section()).toBeNull();
   await settingsLoaded();
   expect(section()).toBeNull();
-  await linked({ enabled: true, games: [WOW] });
+  await linked({ enabled: true, games: [WOW], removed: [] });
   expect(section()).not.toBeNull();
 });
 
 test("shownLinkedGames: nothing until both have loaded, nothing while Show in Steam is off", () => {
   const settings = (loaded: boolean) => ({ settings: defaultSettings(), loaded });
   const games = (loaded: boolean, enabled = true) => ({
-    linked: { enabled, games: [WOW] },
+    linked: { enabled, games: [WOW], removed: [] },
     loaded,
   });
   expect(shownLinkedGames(settings(false), games(false))).toEqual([]);
@@ -94,14 +94,17 @@ test("shownLinkedGames: nothing until both have loaded, nothing while Show in St
 
 test("the section follows linkedGames.changed: Show in Steam off hides it, other pages never get it", async () => {
   void linkedGamesStore.load();
-  await linked({ enabled: true, games: [WOW] });
+  await linked({ enabled: true, games: [WOW], removed: [] });
   await settingsLoaded();
   await render(7);
   expect(section()).toBeNull();
   await render(42);
   expect(section()).not.toBeNull();
   await act(async () =>
-    fake.emit({ event: "linkedGames.changed", params: { enabled: false, games: [WOW] } }),
+    fake.emit({
+      event: "linkedGames.changed",
+      params: { enabled: false, games: [WOW], removed: [] },
+    }),
   );
   expect(section()).toBeNull();
 });

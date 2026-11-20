@@ -6,7 +6,6 @@ import {
   badgeState,
   filterSteamGames,
   likelyWowFirst,
-  pickerRowMarker,
   shouldAutoCheck,
   shortcutIconUrl,
   shortcutsFrom,
@@ -121,18 +120,6 @@ describe("autoUpdateText (WF-02)", () => {
       "Automatic updates postponed",
     );
     expect(autoUpdateText({ updated: [], failed: [], skipped: null })).toBeNull();
-  });
-});
-
-describe("pickerRowMarker (#151)", () => {
-  const wow = { appId: 42, name: "World of Warcraft" };
-  const bnet = { appId: 43, name: "Battle.net" };
-  test("an added game is Currently linked, a found one Linked automatically", () => {
-    expect(pickerRowMarker(wow, [{ ...wow, source: "added" }])).toBe("Currently linked");
-    expect(pickerRowMarker(bnet, [{ ...bnet, source: "found" }])).toBe("Linked automatically");
-  });
-  test("an unlinked entry has no marker", () => {
-    expect(pickerRowMarker(bnet, [{ ...wow, source: "found" }])).toBeNull();
   });
 });
 

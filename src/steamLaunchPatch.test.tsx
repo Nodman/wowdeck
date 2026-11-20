@@ -228,7 +228,11 @@ beforeEach(async () => {
         steamAutoCheck: false,
       },
     },
-    "linkedGames.get": { enabled: true, games: [{ appId: 42, name: "WoW", source: "found" }] },
+    "linkedGames.get": {
+      enabled: true,
+      games: [{ appId: 42, name: "WoW", source: "found" }],
+      removed: [],
+    },
     "launch.state": { state },
     "launch.icon": ({ targetId }) => ({ icon: targetId === "forever" ? FOREVER_ICON : null }),
   });

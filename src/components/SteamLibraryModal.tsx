@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import {
   DialogBody,
   DialogButton,
@@ -20,6 +20,8 @@ import { descriptionStyle } from "../steamTheme";
 import { wowupModalStyleCss } from "../sharedStyles";
 import { ScrollBuffer } from "./ScrollBuffer";
 import { FocusSlot, focusTarget } from "./FocusSlot";
+import { RowChevron, RowSpinner } from "./RowGlyph";
+import { openSteamGamePicker } from "./SteamGamePicker";
 
 const TITLE = "Steam library";
 /** Focus-memory view of the modal's rows. */
@@ -28,6 +30,9 @@ const VIEW = "modal.steamLibrary";
 export const STEAM_LIBRARY_ROW = "steamLibrary";
 /** The "No games linked" row: where focus goes when the last game is removed. */
 const NO_GAMES = "games:none";
+/** The Add a game row: where focus goes back when the picker closes (S36). */
+const ADD_GAME = "addGame";
+const FIND_GAMES = "findGames";
 const gameKey = (game: LinkedGame) => `game:${game.appId}`;
 
 const SOURCE: Record<LinkedGame["source"], string> = {
@@ -56,8 +61,9 @@ const PAGE_TOGGLES: Array<{
 
 /**
  * Options › Steam library (#287): Show in Steam, the linked games (A
- * removes one, no confirmation: the picker brings it back), and what
- * WoWDeck does on their pages. Reads the settings and linked-games stores
+ * removes one, no confirmation: the picker brings it back), Add a game
+ * (the picker, stacked on this modal), Find games, and what WoWDeck does
+ * on their pages. Reads the settings and linked-games stores
  * and changes them through the engine (G4): the panel behind it is gone
  * while it is open.
  */
@@ -73,6 +79,18 @@ export function SteamLibraryModal({ closeModal }: { closeModal?: () => void }) {
   }, []);
 
   const save = (patch: Partial<PluginSettings>) => void settingsStore.save(patch);
+
+  // One search at a time; the row shows Steam's spinner while it runs.
+  const [finding, setFinding] = useState(false);
+  const find = async () => {
+    if (finding) return;
+    setFinding(true);
+    try {
+      await linkedGamesStore.find();
+    } finally {
+      setFinding(false);
+    }
+  };
 
   // The removed row is gone: focus moves to the next game, else the one
   // above, else "No games linked" (S36: never left on nothing).
@@ -120,7 +138,26 @@ export function SteamLibraryModal({ closeModal }: { closeModal?: () => void }) {
                 {...focusTarget(VIEW, gameKey(game))}
               />
             ))}
-            {/* #291: "Add a game ›" and "Find games" go here. */}
+            <Field
+              focusable
+              label="Add a game"
+              description={<span style={descriptionStyle}>Pick one of your non-Steam games</span>}
+              onClick={() => openSteamGamePicker(() => requestFocus(VIEW, ADD_GAME))}
+              {...focusTarget(VIEW, ADD_GAME)}
+            >
+              <RowChevron />
+            </Field>
+            <Field
+              focusable
+              label="Find games"
+              description={
+                <span style={descriptionStyle}>Look for WoW and Battle.net in your library</span>
+              }
+              onClick={() => void find()}
+              {...focusTarget(VIEW, FIND_GAMES)}
+            >
+              {finding && <RowSpinner />}
+            </Field>
           </DialogControlsSection>
           <DialogControlsSection>
             <DialogControlsSectionHeader>On these pages</DialogControlsSectionHeader>

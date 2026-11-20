@@ -80,10 +80,11 @@ export class InstallationService {
    * Called after a detection scan or a manual add: the list may hold an
    * installation with no update metadata yet.
    */
-  readonly foundListeners = new Set<() => void>();
+  readonly foundListeners = new Set<() => void | Promise<void>>();
 
-  #found(): void {
-    for (const listener of this.foundListeners) listener();
+  /** Tell every found listener, and wait for the ones that answer with a promise. */
+  async #found(): Promise<void> {
+    await Promise.all([...this.foundListeners].map((listener) => listener()));
   }
 
   /** Detect installations into the list; the whole list after. */
@@ -93,7 +94,7 @@ export class InstallationService {
     // Keep installations through an unmounted drive, but never keep stale shortcut links.
     this.store.setInstallations(mergeInstallations(this.store.installations.map(i => ({ ...i, steamGames: [] })), found,
       (prior, current) => { prior.steamGames = current.steamGames ?? []; }));
-    this.#found();
+    await this.#found();
     return this.listed();
   }
 
@@ -238,7 +239,7 @@ export class InstallationService {
         }
       }),
     );
-    this.#found();
+    await this.#found();
     return created.map((c) => this.#wire(this.store.installations.find((e) => e.id === c.id)!));
   }
 

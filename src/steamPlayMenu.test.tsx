@@ -91,7 +91,11 @@ test("picking a row selects it and switches Steam back to this Deck, leaving My 
         steamAutoCheck: false,
       },
     },
-    "linkedGames.get": { enabled: true, games: [{ appId: 42, name: "WoW", source: "found" }] },
+    "linkedGames.get": {
+      enabled: true,
+      games: [{ appId: 42, name: "WoW", source: "found" }],
+      removed: [],
+    },
     "launch.state": { state },
     "launch.select": ({ targetId }) => ({
       target: state.clients.find((client) => client.id === targetId)!,
@@ -160,7 +164,11 @@ test("while open, our rows follow the launch state but Steam's menu never update
         steamAutoCheck: false,
       },
     },
-    "linkedGames.get": { enabled: true, games: [{ appId: 42, name: "WoW", source: "found" }] },
+    "linkedGames.get": {
+      enabled: true,
+      games: [{ appId: 42, name: "WoW", source: "found" }],
+      removed: [],
+    },
     "launch.state": () => ({ state: current }),
   });
   const disconnect = connectEngine(fake);

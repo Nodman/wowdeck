@@ -22,10 +22,12 @@ export interface LinkedGamesStore extends Pick<Store<LinkedGamesState>, "get" | 
   load(): Promise<void>;
   /** The engine's `linkedGames.changed`. */
   changed(linked: LinkedGames): void;
-  /** Link a game from Steam's library; toasts the outcome. Resolves to whether it was linked. */
+  /** Link a game from Steam's library (a removed one is found again); toasts the outcome. Resolves to whether it was linked. */
   add(game: SteamGameLink): Promise<boolean>;
   /** Unlink any linked game (a found one stays removed); toasts the outcome. Resolves to whether it was removed. */
   remove(game: SteamGameLink): Promise<boolean>;
+  /** Find games: detect again and bring back removed games; toasts what was found. */
+  find(): Promise<void>;
 }
 
 export function createLinkedGamesStore(deps: {
@@ -33,7 +35,7 @@ export function createLinkedGamesStore(deps: {
   toast(title: string, body: string): void;
 }): LinkedGamesStore {
   const store = createStore<LinkedGamesState>({
-    linked: { enabled: false, games: [] },
+    linked: { enabled: false, games: [], removed: [] },
     loaded: false,
   });
   const replace = (linked: LinkedGames) => store.set({ linked, loaded: true });
@@ -52,10 +54,10 @@ export function createLinkedGamesStore(deps: {
       try {
         replace(await deps.rpc("linkedGames.add", { appId: game.appId, name: game.name }));
       } catch (e) {
-        deps.toast(`Couldn't link ${game.name}`, errorText(e));
+        deps.toast(`Couldn't add ${game.name}`, errorText(e));
         return false;
       }
-      deps.toast("Linked to Steam", `${game.name}'s game page and tile show addon updates`);
+      deps.toast(`Added ${game.name}`, "");
       return true;
     },
     async remove(game) {
@@ -68,7 +70,29 @@ export function createLinkedGamesStore(deps: {
       deps.toast(`Removed ${game.name}`, "");
       return true;
     },
+    async find() {
+      try {
+        const { found, ...linked } = await deps.rpc("linkedGames.find");
+        replace(linked);
+        deps.toast(foundGamesText(found), "");
+      } catch (e) {
+        deps.toast("Couldn't look for games", errorText(e));
+      }
+    },
   };
+}
+
+/**
+ * Find games' toast: "Found Battle.net", "Found World of Warcraft and
+ * Battle.net", "Found 3 games", or "No new games found".
+ */
+function foundGamesText(found: SteamGameLink[]): string {
+  const [first, second] = found;
+  if (!first) return "No new games found";
+  if (!second) return `Found ${first.name}`;
+  return found.length === 2
+    ? `Found ${first.name} and ${second.name}`
+    : `Found ${found.length} games`;
 }
 
 /**

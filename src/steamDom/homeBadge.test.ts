@@ -68,17 +68,20 @@ test("the badge draws nothing, and starts no check, until the settings and the l
   expect(badge()).toBeNull();
   expect(fake.paramsOf("addons.updateSummary")).toEqual([]);
 
-  await load({ enabled: true, games: [WOW] });
+  await load({ enabled: true, games: [WOW], removed: [] });
   await settle();
   expect(badge()?.getAttribute("aria-label")).toBe("WoW addon updates available");
 });
 
 test("Show in Steam off removes the badge", async () => {
   stop = startHomeBadge();
-  await load({ enabled: true, games: [WOW] });
+  await load({ enabled: true, games: [WOW], removed: [] });
   await settle();
   expect(badge()).not.toBeNull();
-  fake.emit({ event: "linkedGames.changed", params: { enabled: false, games: [WOW] } });
+  fake.emit({
+    event: "linkedGames.changed",
+    params: { enabled: false, games: [WOW], removed: [] },
+  });
   await settle();
   expect(badge()).toBeNull();
 });

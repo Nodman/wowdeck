@@ -1,8 +1,8 @@
-import type { LinkedGame } from "../backend/src/api/contracts";
+import type { LinkedGames } from "../backend/src/api/contracts";
 
 /**
  * The Steam library entry that launches WoW (BEYOND-05), and what the
- * game-page section and the Options picker need from Steam.
+ * game-page section and the Add a game picker need from Steam.
  *
  * Steam keeps every library entry in the ambient `appStore.allApps`; a
  * non-Steam shortcut is app_type 0x40000000 (1073741824). Read on the Deck
@@ -17,17 +17,25 @@ export interface SteamGame {
   name: string;
 }
 
-/** A picker row's link marker, shown after its app id. */
-export type PickerMarker = "Currently linked" | "Linked automatically";
+/** An Add a game row: a shortcut that isn't linked; `removed` marks a found game the player removed. */
+export interface PickerGame extends SteamGame {
+  removed: boolean;
+}
 
 /**
- * A picker row's link marker: "Currently linked" for a game the player
- * added (Unlink removes it), "Linked automatically" for one detection found.
+ * Add a game's rows: the shortcuts that aren't linked yet, removed games
+ * first (marked), each part in the order given.
  */
-export function pickerRowMarker(game: SteamGame, linked: LinkedGame[]): PickerMarker | null {
-  const link = linked.find((l) => l.appId === game.appId);
-  if (!link) return null;
-  return link.source === "added" ? "Currently linked" : "Linked automatically";
+export function pickerGames(
+  shortcuts: SteamGame[],
+  linked: Pick<LinkedGames, "games" | "removed">,
+): PickerGame[] {
+  const isLinked = new Set(linked.games.map((game) => game.appId));
+  const isRemoved = new Set(linked.removed.map((game) => game.appId));
+  const rows = shortcuts
+    .filter((game) => !isLinked.has(game.appId))
+    .map((game) => ({ ...game, removed: isRemoved.has(game.appId) }));
+  return [...rows.filter((row) => row.removed), ...rows.filter((row) => !row.removed)];
 }
 
 const SHORTCUT_APP_TYPE = 1073741824;
@@ -106,7 +114,7 @@ export function steamShortcutIcon(appId: number): string | undefined {
  * Picker filter: case-insensitive on the name; "wow" also finds "World of
  * Warcraft" by its initials, the name people call it by. Blank keeps all.
  */
-export function filterSteamGames(games: SteamGame[], query: string): SteamGame[] {
+export function filterSteamGames<T extends SteamGame>(games: T[], query: string): T[] {
   const q = query.trim().toLocaleLowerCase();
   if (!q) {
     return games;

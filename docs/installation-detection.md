@@ -216,18 +216,30 @@ sources:
   installation, hidden installations included, unless the player removed
   it.
 - **Removed.** The found games the player removed in the Steam library
-  modal (`steamRemovedGames`, changed only through `linkedGames.remove`).
-  Scans at engine start and through Find WoW leave this list as it is, so
-  a removed game stays unlinked through rescans and restarts.
-- **Added by you.** The games the player picked in Options
+  modal (`steamRemovedGames`). Scans at engine start and through Find WoW
+  leave this list as it is, so a removed game stays unlinked through
+  rescans and restarts. Picking a removed game in Add a game
+  (`linkedGames.add`) takes it off the list, and the list counts it as found again.
+- **Added by you.** The games the player picked in Add a game
   (`steamAddedGames`, changed only through `linkedGames.add` and
   `linkedGames.remove`). Adding a game a scan already found adds nothing.
   Removing an added game deletes it instead of remembering it.
 
+**Find games** in the Steam library modal (`linkedGames.find`) runs the
+same detection as Find WoW, then clears the removed list, so every found
+game comes back. It answers with the linked games that came back or were
+found for the first time, and the modal's toast names them.
+
+Every scan, including the one at engine start, forgets added and removed
+games whose app id no longer appears in any Steam user's `shortcuts.vdf`.
+When a shortcuts file exists but can't be read, the scan forgets nothing,
+because the game may still be in it.
+
 The list holds one entry per app id. A game that is both found and added
-counts as found. `linkedGames.get` returns the list together with Show in
-Steam (`steamEnabled`). `linkedGames.changed` fires after every scan, add
-and remove, and whenever Show in Steam changes.
+counts as found. `linkedGames.get` returns the list, the removed games
+(for the Add a game picker) and Show in Steam (`steamEnabled`).
+`linkedGames.changed` fires after every scan, add, remove and Find games,
+and whenever Show in Steam changes.
 
 One engine check, `LinkedGameList.isLinked`, decides whether an app id is
 linked right now, and Show in Steam off makes every app id unlinked. The

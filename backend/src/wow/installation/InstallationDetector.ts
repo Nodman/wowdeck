@@ -508,18 +508,37 @@ export class InstallationDetector {
   }
 
   async steamShortcuts(): Promise<SteamShortcut[]> {
+    return (await this.#readShortcuts()).shortcuts;
+  }
+
+  /**
+   * Every app id in any Steam user's shortcuts, or null when that isn't
+   * known: no shortcuts file was read, or one exists that couldn't be read.
+   * A game missing from a known set was deleted from Steam.
+   */
+  async steamShortcutAppIds(): Promise<ReadonlySet<number> | null> {
+    const { shortcuts, read, unreadable } = await this.#readShortcuts();
+    return read && !unreadable ? new Set(shortcuts.map((shortcut) => shortcut.appId)) : null;
+  }
+
+  async #readShortcuts(): Promise<{ shortcuts: SteamShortcut[]; read: boolean; unreadable: boolean }> {
     const shortcuts: SteamShortcut[] = [];
+    let read = false;
+    let unreadable = false;
     for (const root of this.steamHomes()) {
       for (const user of await listDirectory(join(root, "userdata"))) {
         if (!user.isDirectory) continue;
+        const file = Bun.file(join(user.path, "config/shortcuts.vdf"));
         try {
-          shortcuts.push(...readSteamShortcuts(await Bun.file(join(user.path, "config/shortcuts.vdf")).bytes()));
+          shortcuts.push(...readSteamShortcuts(await file.bytes()));
+          read = true;
         } catch {
           // Missing or malformed shortcut files cannot stop other discovery.
+          if (await file.exists().catch(() => true)) unreadable = true;
         }
       }
     }
-    return shortcuts;
+    return { shortcuts, read, unreadable };
   }
 
   async steamLibraryFolders(): Promise<string[]> {

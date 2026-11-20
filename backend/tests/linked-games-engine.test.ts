@@ -81,8 +81,16 @@ async function fixture(setup: Setup = {}) {
     events,
     linked: () => f.engine.call("linkedGames.get", {}),
     state: async (appId = WOW) => (await f.engine.call("launch.state", { appId })).state,
+    launcher,
     /** Steam renamed the WoW shortcut. */
     rename: (name: string) => writeShortcuts(steam, [{ appId: WOW, name, exe: launcher }]),
+    /** Steam user 100's shortcuts are now these. */
+    writeShortcuts: (now: ShortcutFixture[]) => writeShortcuts(steam, now),
+    /** A second Steam user, whose shortcuts file can't be read. */
+    corruptShortcuts: () => {
+      mkdirSync(join(steam, "userdata/200/config"), { recursive: true });
+      writeFileSync(join(steam, "userdata/200/config/shortcuts.vdf"), "not a vdf");
+    },
     /** A new engine over the same home and data directory: what a reboot reads. */
     restart: async () => {
       f.engine = await start();
@@ -96,6 +104,7 @@ test("a found WoW shortcut is a linked game marked found, and its Play has launc
   expect(await f.linked()).toEqual({
     enabled: true,
     games: [{ appId: WOW, name: "World of Warcraft", source: "found" }],
+    removed: [],
   });
   expect((await f.state())?.target).toMatchObject({ kind: "battlenet" });
 });
@@ -110,6 +119,7 @@ test("an added Battle.net shortcut detection didn't name gets launch state", asy
   expect(await f.engine.call("linkedGames.add", { appId: WOW, name: "Battle.net" })).toEqual({
     enabled: true,
     games: [{ appId: WOW, name: "Battle.net", source: "added" }],
+    removed: [],
   });
   expect((await f.state())?.target).toMatchObject({ kind: "battlenet" });
 });
@@ -129,6 +139,7 @@ test("Show in Steam off keeps the list and unlinks every app id for launch; on r
   expect(await f.linked()).toEqual({
     enabled: false,
     games: [{ appId: WOW, name: "World of Warcraft", source: "found" }],
+    removed: [],
   });
   expect(await launchReads()).toEqual({
     state: null,
@@ -167,18 +178,29 @@ test("upgrade: a hand-made link to a found game is dropped as a duplicate", asyn
   expect(await f.linked()).toEqual({
     enabled: true,
     games: [{ appId: WOW, name: "World of Warcraft", source: "found" }],
+    removed: [],
   });
   expect((await f.engine.call("settings.get", {})).settings.steamAddedGames).toEqual([]);
 });
 
+/** WoW's shortcut, and a Lutris shortcut detection doesn't recognise. */
+const withLutris = (launcher: string): ShortcutFixture[] => [
+  { appId: WOW, name: "World of Warcraft", exe: launcher },
+  { appId: 77, name: "Lutris WoW", exe: "/usr/bin/lutris" },
+];
+
 test("upgrade: a hand-made link to a game detection doesn't find becomes an added game", async () => {
-  const f = await fixture({ state: oldState({ steamGame: { appId: 77, name: "Lutris WoW" } }) });
+  const f = await fixture({
+    shortcuts: withLutris,
+    state: oldState({ steamGame: { appId: 77, name: "Lutris WoW" } }),
+  });
   expect(await f.linked()).toEqual({
     enabled: true,
     games: [
       { appId: WOW, name: "World of Warcraft", source: "found" },
       { appId: 77, name: "Lutris WoW", source: "added" },
     ],
+    removed: [],
   });
 });
 
@@ -187,6 +209,7 @@ test("upgrade: Link detected Steam games off starts Show in Steam off", async ()
   expect(await f.linked()).toEqual({
     enabled: false,
     games: [{ appId: WOW, name: "World of Warcraft", source: "found" }],
+    removed: [],
   });
   expect(await f.state()).toBeNull();
 });
@@ -204,10 +227,10 @@ test("linkedGames.changed fires after a scan and after a Show in Steam change", 
   const f = await fixture();
   f.events.splice(0);
   await f.engine.call("installations.detect", {});
-  expect(f.events).toEqual([{ enabled: true, games: [{ appId: WOW, name: "World of Warcraft", source: "found" }] }]);
+  expect(f.events).toEqual([{ enabled: true, games: [{ appId: WOW, name: "World of Warcraft", source: "found" }], removed: [] }]);
 
   await f.engine.call("settings.set", { settings: { steamEnabled: false } });
-  expect(f.events.at(-1)).toEqual({ enabled: false, games: [{ appId: WOW, name: "World of Warcraft", source: "found" }] });
+  expect(f.events.at(-1)).toEqual({ enabled: false, games: [{ appId: WOW, name: "World of Warcraft", source: "found" }], removed: [] });
   const count = f.events.length;
   await f.engine.call("settings.set", { settings: { steamBadge: false } });
   expect(f.events).toHaveLength(count);
@@ -257,7 +280,11 @@ test("settings.set can't write the added games", async () => {
 
 test("removing a found game unlinks it, through rescans and restarts", async () => {
   const f = await fixture();
-  expect(await f.engine.call("linkedGames.remove", { appId: WOW })).toEqual({ enabled: true, games: [] });
+  expect(await f.engine.call("linkedGames.remove", { appId: WOW })).toEqual({
+    enabled: true,
+    games: [],
+    removed: [{ appId: WOW, name: "World of Warcraft" }],
+  });
   expect(await f.state()).toBeNull();
 
   await f.engine.call("installations.detect", {});
@@ -284,7 +311,7 @@ test("removing a found game fires linkedGames.changed", async () => {
   const f = await fixture();
   f.events.splice(0);
   await f.engine.call("linkedGames.remove", { appId: WOW });
-  expect(f.events).toEqual([{ enabled: true, games: [] }]);
+  expect(f.events).toEqual([{ enabled: true, games: [], removed: [{ appId: WOW, name: "World of Warcraft" }] }]);
 });
 
 test("a found game the player had also added is removed in full", async () => {
@@ -315,4 +342,100 @@ test("a remove the state file can't take fails, and the game stays linked", asyn
   expect((await f.linked()).games.map((game) => game.appId)).toEqual([WOW]);
   await f.restart();
   expect((await f.linked()).games.map((game) => game.appId)).toEqual([WOW]);
+});
+
+test("the read names the removed games, for the Add a game picker", async () => {
+  const f = await fixture();
+  await f.engine.call("linkedGames.remove", { appId: WOW });
+  expect(await f.linked()).toEqual({
+    enabled: true,
+    games: [],
+    removed: [{ appId: WOW, name: "World of Warcraft" }],
+  });
+});
+
+test("adding a removed found game links it as found again and takes it off the removed list", async () => {
+  const f = await fixture();
+  await f.engine.call("linkedGames.remove", { appId: WOW });
+  expect(await f.engine.call("linkedGames.add", { appId: WOW, name: "World of Warcraft" })).toEqual({
+    enabled: true,
+    games: [{ appId: WOW, name: "World of Warcraft", source: "found" }],
+    removed: [],
+  });
+  const { settings } = await f.engine.call("settings.get", {});
+  expect(settings.steamAddedGames).toEqual([]);
+  expect(settings.steamRemovedGames).toEqual([]);
+  await f.restart();
+  expect((await f.linked()).games).toEqual([{ appId: WOW, name: "World of Warcraft", source: "found" }]);
+});
+
+test("Find games brings a removed game back as found and names it; installations.detect doesn't", async () => {
+  const f = await fixture();
+  await f.engine.call("linkedGames.remove", { appId: WOW });
+  await f.engine.call("installations.detect", {});
+  expect((await f.linked()).games).toEqual([]);
+
+  expect(await f.engine.call("linkedGames.find", {})).toEqual({
+    enabled: true,
+    games: [{ appId: WOW, name: "World of Warcraft", source: "found" }],
+    removed: [],
+    found: [{ appId: WOW, name: "World of Warcraft", source: "found" }],
+  });
+  expect((await f.state())?.target).toMatchObject({ kind: "battlenet" });
+});
+
+test("Find games names nothing when every found game was already linked", async () => {
+  const f = await fixture();
+  expect((await f.engine.call("linkedGames.find", {})).found).toEqual([]);
+});
+
+test("Find games fires linkedGames.changed with the restored list", async () => {
+  const f = await fixture();
+  await f.engine.call("linkedGames.remove", { appId: WOW });
+  f.events.splice(0);
+  await f.engine.call("linkedGames.find", {});
+  expect(f.events.at(-1)).toEqual({
+    enabled: true,
+    games: [{ appId: WOW, name: "World of Warcraft", source: "found" }],
+    removed: [],
+  });
+});
+
+test("a scan forgets added and removed games deleted from shortcuts.vdf", async () => {
+  const f = await fixture({ shortcuts: withLutris });
+  await f.engine.call("linkedGames.add", { appId: 77, name: "Lutris WoW" });
+  await f.engine.call("linkedGames.remove", { appId: WOW });
+  // A scan with both shortcuts still in Steam keeps both lists.
+  await f.engine.call("installations.detect", {});
+  expect(await f.linked()).toMatchObject({
+    games: [{ appId: 77, source: "added" }],
+    removed: [{ appId: WOW }],
+  });
+
+  f.writeShortcuts([]);
+  f.events.splice(0);
+  await f.engine.call("installations.detect", {});
+  expect(await f.linked()).toEqual({ enabled: true, games: [], removed: [] });
+  const { settings } = await f.engine.call("settings.get", {});
+  expect(settings.steamAddedGames).toEqual([]);
+  expect(settings.steamRemovedGames).toEqual([]);
+  expect(f.events.at(-1)).toEqual({ enabled: true, games: [], removed: [] });
+});
+
+test("the startup scan forgets an added game deleted from Steam while WoWDeck wasn't running", async () => {
+  const f = await fixture({ shortcuts: withLutris });
+  await f.engine.call("linkedGames.add", { appId: 77, name: "Lutris WoW" });
+  f.writeShortcuts([{ appId: WOW, name: "World of Warcraft", exe: f.launcher }]);
+  await f.restart();
+  expect((await f.linked()).games.map(({ appId }) => appId)).toEqual([WOW]);
+});
+
+test("a shortcuts file that can't be read forgets nothing", async () => {
+  const f = await fixture({ shortcuts: withLutris });
+  await f.engine.call("linkedGames.add", { appId: 77, name: "Lutris WoW" });
+  // The game may live in the unreadable user's shortcuts.
+  f.writeShortcuts([{ appId: WOW, name: "World of Warcraft", exe: f.launcher }]);
+  f.corruptShortcuts();
+  await f.engine.call("installations.detect", {});
+  expect((await f.linked()).games).toContainEqual({ appId: 77, name: "Lutris WoW", source: "added" });
 });

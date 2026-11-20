@@ -316,12 +316,13 @@ export function assembleEngine(config: EngineConfig): Engine & { start(): Promis
     };
   }
 
+  const steam = new InstallationDetector({ homeDir });
   const linkedGames = new LinkedGameList(
     store,
     () => installationService.list(),
     (games) => server.emit("linkedGames.changed", games),
+    () => steam.steamShortcutAppIds(),
   );
-  const steam = new InstallationDetector({ homeDir });
   const launch = new LaunchService(
     // Only a linked game's page launches through WoWDeck (Show in Steam on).
     async (appId, preferredId) => linkedGames.isLinked(appId)
@@ -376,6 +377,8 @@ export function assembleEngine(config: EngineConfig): Engine & { start(): Promis
     // Discovery also refreshes Steam attachments while the QAM is closed. It never opts into updates.
     try {
       await installationService.detect(homeDir);
+      // Forget added and removed games deleted from Steam since the last run.
+      await linkedGames.forgetDeleted();
     } catch {
       console.error(JSON.stringify({ component: "installation-detection", reason: "startup-scan-failed" }));
     }

@@ -106,6 +106,18 @@ export type LinkedGames = {
   enabled: boolean;
   /** One entry per app id, in app id order. */
   games: LinkedGame[];
+  /**
+   * The found games the player removed (PluginSettings.steamRemovedGames),
+   * in the order removed: the Add a game picker lists them first, marked
+   * Removed.
+   */
+  removed: SteamGameLink[];
+};
+
+/** linkedGames.find's answer. */
+export type FoundGames = LinkedGames & {
+  /** The linked games this search brought back or found for the first time, in app id order. */
+  found: LinkedGame[];
 };
 
 export type InstallationPreferences = Partial<Pick<Installation, "autoUpdateEnabled" | "hidden">>;
@@ -1035,8 +1047,10 @@ export interface MethodMap {
     result: LinkedGames;
   };
   /**
-   * Link a game from Steam's library (app id and name). A game detection
-   * already found stays found. Fires linkedGames.changed.
+   * Link a game from Steam's library (app id and name). A removed game
+   * comes off the removed list and is found again; a game detection already
+   * found stays found; any other game is added. Fails when the state file
+   * can't take the change. Fires linkedGames.changed.
    */
   "linkedGames.add": {
     params: SteamGameLink;
@@ -1052,6 +1066,15 @@ export interface MethodMap {
   "linkedGames.remove": {
     params: { appId: number };
     result: LinkedGames;
+  };
+  /**
+   * Find games: run the same detection as installations.detect, then clear
+   * the removed list, so every found game comes back. Answers with what
+   * came back or was found for the first time. Fires linkedGames.changed.
+   */
+  "linkedGames.find": {
+    params: Record<string, never>;
+    result: FoundGames;
   };
 
   "installations.list": {
@@ -1671,7 +1694,10 @@ export interface PluginSettings {
   steamAddedGames: SteamGameLink[];
   /**
    * The found games the player removed: automatic scans leave them
-   * unlinked. Engine-written through linkedGames.remove, never settings.set.
+   * unlinked. Engine-written through linkedGames.remove, linkedGames.add
+   * (takes one off) and linkedGames.find (clears it), never settings.set.
+   * Every scan forgets added and removed games whose app id no longer
+   * appears in any Steam user's shortcuts.
    */
   steamRemovedGames: SteamGameLink[];
   /** Check for addon updates in the background when the linked game's page or tile appears (at most every 15 min). */

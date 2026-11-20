@@ -2,16 +2,17 @@ import { afterEach, beforeEach, expect, mock, test } from "bun:test";
 import { JSDOM } from "jsdom";
 import { act, type ReactElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import type { LinkedGame, LinkedGames } from "../backend/src/api/contracts";
+import type { LinkedGame, LinkedGames, SteamGameLink } from "../backend/src/api/contracts";
 import { defaultSettings } from "../backend/src/wow/storage/settings";
 import { deckyUiStub } from "./deckyUiStub";
 import { connectEngine } from "./engineLink";
 import { createFakeEngine, settle, type FakeEngine } from "./testSupport/fakeEngine";
 
 /**
- * Options › Steam library (#290): one row with a status line, opening a
- * modal that lists the linked games (A removes one) and the toggles for
- * Steam's pages. Rendered over a fake engine with the real stores.
+ * Options › Steam library (#290, #291): one row with a status line, opening
+ * a modal that lists the linked games (A removes one), Add a game (the
+ * picker, stacked on top), Find games, and the toggles for Steam's pages.
+ * Rendered over a fake engine with the real stores.
  */
 
 const toasts: string[] = [];
@@ -20,6 +21,7 @@ mock.module("@decky/api", () => ({
 }));
 
 let shown: ReactElement | null = null;
+let closed = 0;
 type Row = {
   label?: ReactNode;
   description?: ReactNode;
@@ -60,18 +62,39 @@ mock.module("@decky/ui", () => ({
   ),
   showModal: (element: ReactElement) => {
     shown = element;
-    return { Close: () => {} };
+    return { Close: () => closed++ };
   },
 }));
 
 const { SteamLibrarySection } = await import("./components/settings/SteamLibrarySection");
 const { settingsStore } = await import("./settings");
 const { linkedGamesStore } = await import("./linkedGames");
+const { rememberedFocus } = await import("./focusMemory");
 
 const WOW: LinkedGame = { appId: 42, name: "World of Warcraft", source: "found" };
 const BNET: LinkedGame = { appId: 43, name: "Battle.net", source: "added" };
+const LUTRIS: SteamGameLink = { appId: 44, name: "Lutris" };
+const MARIO: SteamGameLink = { appId: 45, name: "Super Mario 64" };
 
-const env = globalThis as { window?: unknown; IS_REACT_ACT_ENVIRONMENT?: boolean };
+const env = globalThis as {
+  window?: unknown;
+  IS_REACT_ACT_ENVIRONMENT?: boolean;
+  appStore?: unknown;
+};
+
+/** Steam's library: these non-Steam games, and one Steam game. */
+function steamHas(games: SteamGameLink[]) {
+  env.appStore = {
+    allApps: [
+      ...games.map(({ appId, name }) => ({
+        appid: appId,
+        display_name: name,
+        app_type: 1073741824,
+      })),
+      { appid: 570, display_name: "Dota 2", app_type: 1 },
+    ],
+  };
+}
 const oldWindow = env.window;
 let dom: JSDOM;
 let root: Root;
@@ -87,6 +110,8 @@ beforeEach(() => {
   root = createRoot(dom.window.document.getElementById("root")!);
   toasts.splice(0);
   shown = null;
+  closed = 0;
+  steamHas([]);
 });
 
 afterEach(async () => {
@@ -95,10 +120,12 @@ afterEach(async () => {
   dom.window.close();
   env.window = oldWindow;
   delete env.IS_REACT_ACT_ENVIRONMENT;
+  delete env.appStore;
 });
 
-/** What the engine holds: Show in Steam and the linked games. */
-async function engineHas(linked: LinkedGames) {
+/** What the engine holds: Show in Steam, the linked games and the removed ones. */
+async function engineHas(held: Omit<LinkedGames, "removed"> & { removed?: SteamGameLink[] }) {
+  const linked: LinkedGames = { removed: [], ...held };
   fake.answers["settings.get"] = {
     settings: { ...defaultSettings(), steamEnabled: linked.enabled },
   };
@@ -164,6 +191,8 @@ test("the modal lists the master switch, each linked game and the toggles for St
     "Linked games",
     "World of Warcraft · Found automatically A: Remove",
     "Battle.net · Added by you A: Remove",
+    "Add a game · Pick one of your non-Steam games",
+    "Find games · Look for WoW and Battle.net in your library",
     "On these pages",
     "Check for updates · When the page or tile appears, at most every 15 minutes",
     "Tile badge · Green when updates are waiting",
@@ -182,6 +211,7 @@ test("A on a game row removes it and says so", async () => {
   fake.answers["linkedGames.remove"] = ({ appId }) => ({
     enabled: true,
     games: [WOW, BNET].filter((game) => game.appId !== appId),
+    removed: [],
   });
   await openModal();
   await act(async () => row("Battle.net").click());
@@ -220,4 +250,134 @@ test("flipping Show in Steam saves it, and the page rows follow at once", async 
   await act(async () => toggle.click());
   expect(fake.paramsOf("settings.set")).toEqual([{ settings: { steamEnabled: false } }]);
   expect(row("Tile badge").getAttribute("data-disabled")).toBe("true");
+});
+
+/** Open the picker from the modal's Add a game row. */
+async function openPicker() {
+  await openModal();
+  await act(async () => row("Add a game").click());
+  await act(async () => root.render(shown!));
+}
+
+/** The picker's game rows: "name — description". */
+const pickerRows = () =>
+  [...dom.window.document.querySelectorAll("#root [data-row-name]")].map(
+    (name) =>
+      `${name.textContent} — ${name.parentElement?.querySelector("[data-row-description]")?.textContent ?? ""}`,
+  );
+
+const pickerRow = (name: string) =>
+  [...dom.window.document.querySelectorAll<HTMLElement>("#root [data-row]")].find(
+    (el) => el.querySelector("[data-row-name]")?.textContent === name,
+  )!;
+
+test("Add a game lists only unlinked non-Steam games, removed ones first and marked", async () => {
+  steamHas([BNET, LUTRIS, MARIO, WOW]);
+  await engineHas({
+    enabled: true,
+    games: [WOW],
+    removed: [{ appId: BNET.appId, name: BNET.name }],
+  });
+  await openPicker();
+  expect(dom.window.document.querySelector("#root h2")?.textContent).toBe("Add a game");
+  expect(pickerRows()).toEqual([
+    "Battle.net — App 43 · Removed",
+    "Lutris — App 44",
+    "Super Mario 64 — App 45",
+  ]);
+  expect(pickerRow("Lutris").querySelector("footer")?.textContent).toBe("A: Add");
+});
+
+test("picking a game adds it, says so, and focus goes back to Add a game", async () => {
+  steamHas([LUTRIS, WOW]);
+  await engineHas({ enabled: true, games: [WOW] });
+  fake.answers["linkedGames.add"] = ({ appId, name }) => ({
+    enabled: true,
+    games: [WOW, { appId, name, source: "added" }],
+    removed: [],
+  });
+  await openPicker();
+  await act(async () => pickerRow("Lutris").click());
+  await settle();
+  expect(fake.paramsOf("linkedGames.add")).toEqual([LUTRIS]);
+  expect(toasts).toEqual(["Added Lutris"]);
+  expect(closed).toBe(1);
+  expect(rememberedFocus("modal.steamLibrary")).toBe("addGame");
+});
+
+test("picking a removed game asks the engine to add it back", async () => {
+  steamHas([BNET, WOW]);
+  await engineHas({
+    enabled: true,
+    games: [WOW],
+    removed: [{ appId: BNET.appId, name: BNET.name }],
+  });
+  fake.answers["linkedGames.add"] = {
+    enabled: true,
+    games: [WOW, { ...BNET, source: "found" }],
+    removed: [],
+  };
+  await openPicker();
+  await act(async () => pickerRow("Battle.net").click());
+  await settle();
+  expect(fake.paramsOf("linkedGames.add")).toEqual([{ appId: BNET.appId, name: BNET.name }]);
+  expect(toasts).toEqual(["Added Battle.net"]);
+});
+
+test("B on the picker puts focus back on Add a game", async () => {
+  steamHas([LUTRIS]);
+  await engineHas({ enabled: true, games: [] });
+  await openPicker();
+  await act(async () => (shown!.props as { closeModal: () => void }).closeModal());
+  expect(closed).toBe(1);
+  expect(rememberedFocus("modal.steamLibrary")).toBe("addGame");
+  expect(fake.paramsOf("linkedGames.add")).toEqual([]);
+});
+
+test("with every non-Steam game linked, the picker says so", async () => {
+  steamHas([WOW]);
+  await engineHas({ enabled: true, games: [WOW] });
+  await openPicker();
+  expect(pickerRows()).toEqual([]);
+  expect(read()).toContain("Every non-Steam game is linked");
+});
+
+/** Press Find games with the engine answering `found`. */
+async function findGames(found: LinkedGame[]) {
+  fake.answers["linkedGames.find"] = { enabled: true, games: [WOW, ...found], removed: [], found };
+  await openModal();
+  await act(async () => row("Find games").click());
+  await settle();
+}
+
+test("Find games names what came back", async () => {
+  await engineHas({ enabled: true, games: [WOW] });
+  await findGames([{ ...BNET, source: "found" }]);
+  expect(fake.paramsOf("linkedGames.find")).toHaveLength(1);
+  expect(toasts).toEqual(["Found Battle.net"]);
+  expect(read()).toContain("Battle.net · Found automatically A: Remove");
+});
+
+test("Find games names two games, and counts more", async () => {
+  await engineHas({ enabled: true, games: [] });
+  await findGames([WOW, { ...BNET, source: "found" }]);
+  expect(toasts).toEqual(["Found World of Warcraft and Battle.net"]);
+  toasts.splice(0);
+  await findGames([WOW, { ...BNET, source: "found" }, { ...LUTRIS, source: "found" }]);
+  expect(toasts).toEqual(["Found 3 games"]);
+});
+
+test("Find games with nothing new says so", async () => {
+  await engineHas({ enabled: true, games: [WOW] });
+  await findGames([]);
+  expect(toasts).toEqual(["No new games found"]);
+});
+
+test("Find games the engine can't finish says it couldn't", async () => {
+  await engineHas({ enabled: true, games: [WOW] });
+  await openModal();
+  const finding = act(async () => row("Find games").click());
+  await fake.next("linkedGames.find").reject("io_error", "disk full");
+  await finding;
+  expect(toasts).toEqual(["Couldn't look for games"]);
 });
