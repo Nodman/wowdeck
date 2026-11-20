@@ -173,6 +173,14 @@ function normalizeAutoUpdateResult(value: unknown): AutoUpdateResult | null {
 
 const RULES: Rules = {
   selectedInstallationId: stringOrNull(false),
+  steamLaunchTargets: {
+    default: () => ({}),
+    normalize: (value) => value && typeof value === "object"
+      ? Object.fromEntries(Object.entries(value).filter(([key, id]) =>
+          /^[1-9]\d*$/.test(key) && Number(key) <= 0xffffffff && typeof id === "string" && id !== ""))
+      : {},
+    userWritable: false,
+  },
   enabledProviders: { default: () => null, normalize: stringList, userWritable: false },
   customWowPaths: { default: () => [], normalize: (value) => stringList(value) ?? [], userWritable: false },
   curseApiKey: stringOrNull(true),
@@ -238,6 +246,7 @@ const RULES: Rules = {
   steamAutoLink: toggle(true),
   steamAutoCheck: toggle(true),
   steamBadge: toggle(true),
+  steamLaunchMenu: toggle(true),
   hideLibraries: toggle(false),
   hideUnmanaged: toggle(false),
   keepPreviousVersions: toggle(true),

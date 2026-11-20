@@ -96,6 +96,19 @@ export function SteamLibrarySection() {
               onChange={(on) => void settingsStore.save({ steamBadge: on })}
             />
           </SettingsRow>
+          <SettingsRow id="steamLaunchMenu">
+            <ToggleField
+              label="Choose the WoW version from Play"
+              description={
+                <span style={descriptionStyle}>
+                  Play's menu lists your WoW versions, and Play starts the one you pick through
+                  Battle.net. Off: Steam's own Play button.
+                </span>
+              }
+              checked={settings.steamLaunchMenu}
+              onChange={(on) => void settingsStore.save({ steamLaunchMenu: on })}
+            />
+          </SettingsRow>
         </>
       )}
     </PanelSection>

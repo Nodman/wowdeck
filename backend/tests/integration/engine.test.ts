@@ -516,7 +516,7 @@ describe("settings.set, key by key", () => {
   }
 
   test("the toggles store only a real true as true", async () => {
-    for (const key of ["steamAutoCheck", "steamBadge", "hideLibraries", "hideUnmanaged", "keepPreviousVersions", "autoUpdate"]) {
+    for (const key of ["steamAutoCheck", "steamBadge", "steamLaunchMenu", "hideLibraries", "hideUnmanaged", "keepPreviousVersions", "autoUpdate"]) {
       expect((await set({ [key]: true }))[key]).toBe(true);
       expect((await set({ [key]: "false" }))[key]).toBe(false);
       expect((await set({ [key]: 1 }))[key]).toBe(false);
@@ -560,10 +560,12 @@ describe("settings.set, key by key", () => {
       lastAutoUpdate: { at: 1, updated: ["x"], failed: [], skipped: null },
       newlyUpdatedHours: 1,
       pluginUpdateToastShownFor: "9.9.9",
+      steamLaunchTargets: { "42": "forged-installation" },
     });
     expect(after.lastAutoUpdate).toEqual(before.lastAutoUpdate);
     expect(after.newlyUpdatedHours).toEqual(before.newlyUpdatedHours);
     expect(after.pluginUpdateToastShownFor).toEqual(before.pluginUpdateToastShownFor);
+    expect(after.steamLaunchTargets).toEqual(before.steamLaunchTargets);
   });
 
   test("keys the UI never writes", async () => {

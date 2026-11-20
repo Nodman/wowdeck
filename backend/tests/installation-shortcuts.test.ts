@@ -408,3 +408,19 @@ test("a wrapper with an explicit WoW product and prefix attaches through registr
   ]);
   expect((await detector().detect())[0]!.steamGames).toEqual([{ appId: 42, name: "Wrapped WoW" }]);
 });
+
+test("a direct client shortcut whose start folder ends in a slash shares the launcher entry's installation", async () => {
+  // Steam stores a shortcut's start folder with a trailing slash (Deck, 2026-11-18).
+  const forever = flavor(join(home, "Applications/World of Warcraft/_forever_"));
+  writeFileSync(join(forever, "..", "Battle.net.exe"), "");
+  shortcuts("100", [
+    { appid: 42, name: "World of Warcraft", exe: `"${join(forever, "..", "Battle.net.exe")}"`, start: "" },
+    { appid: 43, name: "Forever", exe: `"${join(forever, "Wow.exe")}"`, start: `"${forever}/"` },
+  ]);
+  const found = await detector().detect();
+  expect(found.map((i) => i.location)).toEqual([forever]);
+  expect(found[0]!.steamGames).toEqual([
+    { appId: 42, name: "World of Warcraft" },
+    { appId: 43, name: "Forever" },
+  ]);
+});

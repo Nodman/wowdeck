@@ -10,6 +10,7 @@ import type { HandlerDeps } from "./deps";
 import { aboutHandlers } from "./about";
 import { addonsHandlers } from "./addons";
 import { installationsHandlers } from "./installations";
+import { launchHandlers } from "./launch";
 import { notificationsHandlers } from "./notifications";
 import { providersHandlers } from "./providers";
 import { settingsHandlers } from "./settings";
@@ -20,6 +21,7 @@ export function handlerTable(deps: HandlerDeps): HandlerTable {
   return {
     ...systemHandlers(deps),
     ...installationsHandlers(deps),
+    ...launchHandlers(deps),
     ...addonsHandlers(deps),
     ...providersHandlers(deps),
     ...settingsHandlers(deps),

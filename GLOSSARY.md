@@ -296,6 +296,33 @@ _Avoid_: state restore
 
 ## WoW clients
 
+**Client table**:
+The one record per WoW client in `backend/src/wow/clients.ts` (`WOW_CLIENTS`).
+Each record holds the client's flavor folder, game type, short name, full
+name, former names and Battle.net product code. Every client lookup reads it,
+so adding or renaming a client is an edit to that table alone.
+_Avoid_: client map, launch table, name table
+
+**Product code**:
+The Battle.net code in `--exec="launch <code>"`: `WoW` starts Retail, `WoWF`
+Forever and `WoWC` Classic. `WoWC` covers Mists of Pandaria Classic, Classic
+Era and Anniversary, and has only been seen starting Mists.
+_Avoid_: launch token, game code
+
+**Version UID**:
+The Battle.net ID that selects a game version without starting it, for example
+`wow_classic_era`. The player still presses Play in Battle.net.
+_Avoid_: product code, launch UID
+
+**Launch target**:
+What Play starts on a linked Battle.net shortcut's game page: Battle.net
+itself, Retail, Classic or Forever. Each WoW row shows only when Battle.net
+lists its client as installed in the shortcut's prefix. Classic is one row
+for Mists of Pandaria Classic, Classic Era and Anniversary. It is saved per
+Steam shortcut, and Battle.net is the default. Choosing one never changes
+the active installation.
+_Avoid_: launch client (for Battle.net), play target
+
 **Forever**:
 The live World of Warcraft: Forever client, installed in `_forever_`. It runs
 the Retail game binary; only its folder tells it apart from Retail.

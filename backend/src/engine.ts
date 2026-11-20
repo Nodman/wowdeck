@@ -1,3 +1,7 @@
+import { InstallationDetector } from "./wow/installation/InstallationDetector";
+import { LaunchService, type LaunchWorld } from "./wow/launch/LaunchService";
+import { localLaunchWorld } from "./wow/launch/LaunchProcesses";
+import { resolveLaunchEntry } from "./wow/launch/LaunchEntries";
 /**
  * The engine's assembly: every service the RPC handlers use, wired from one
  * configuration, and the startup that runs before the first request.
@@ -87,6 +91,8 @@ export interface EngineConfig {
   now: () => number;
   /** The protocol stream (stdout by default). */
   out?: (line: string) => void;
+  /** Process observation and launch asks; this machine's when unset (tests pass fake processes). */
+  launchWorld?: LaunchWorld;
 }
 
 export const DEFAULT_URLS: EngineUrls = {
@@ -306,7 +312,16 @@ export function assembleEngine(config: EngineConfig): Engine & { start(): Promis
     };
   }
 
+  const steam = new InstallationDetector({ homeDir });
+  const launch = new LaunchService(
+    (appId, preferredId) => resolveLaunchEntry(
+      appId, installationService.listed(), steam, preferredId ?? store.settings.steamLaunchTargets[appId],
+    ),
+    config.launchWorld ?? localLaunchWorld(homeDir, () => steam.steamHomes()),
+    (completion) => server.emit("launch.completed", completion),
+  );
   const deps: HandlerDeps = {
+    launch,
     tsmAuth,
     tsmData,
     backendVersion,

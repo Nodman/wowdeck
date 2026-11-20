@@ -118,3 +118,86 @@ keyboard`, and B returns input to the QAM.
 The device fixture and normal runner sequence were repeated against the fix;
 see `docs/regression-test-plan.md`, Q-1c. All temporary input observers and DOM
 fixtures were removed afterward.
+
+## 8.4d Launching a stopped Steam shortcut (2026-11-18)
+
+DEVICE, Steam CEF, virtual Xbox controller and SSH process observation.
+Pressing the plugin's Forever button called Steam's `Apps.RunGame` with
+the shortcut's decimal game ID string. The local app overview's
+`display_status` was 11 before launch (ReadyToLaunch) and 4 after launch
+(Running). The installed Steam client exposed
+`Apps.RegisterForGameActionShowError`. The successful run produced no
+launch error notice. See the [stopped-entry run](../hardware/2026-11-18-steam-stopped-entry/README.md).
+
+The Steam client app-overview schema gives
+`CAppOverview_PerClientData.display_status` the `EDisplayStatus` enum.
+`Launching` is 1 and `Running` is 4. Decky's Steam client types use that
+enum for `appStore.GetAppOverviewByAppID(appId).local_per_client_data`.
+WoWDeck reads the field before requesting a start and again before calling
+`RunGame`. Either value tells it to let the existing Steam launch proceed.
+
+DEVICE, 2026-11-18. The combined build captured `11 → 1 → 4` on both
+Steam starts. See the [combined Deck run](../hardware/2026-11-18-steam-launch-integration/README.md).
+
+If the overview is missing, unreadable or uses an unfamiliar value, the engine
+checks for the shortcut session through its own process scan. That scan cannot
+see Steam's launch before there is a process to observe.
+[Steam client app-overview schema](https://github.com/SteamDatabase/Protobufs/blob/89b77382edac5f747bfc196c2edf8996a7fe92bc/steam/steammessages_appoverview.proto#L6-L18)
+
+## 8.4e Steam's Play button internals (2026-11-18)
+
+The Play button patch (ADR 0016, #285) relies on undocumented SteamUI
+properties. G13 asks for each one: what WoWDeck uses it for, how it was
+verified, and what happens when a Steam update removes it.
+
+Two sources. LIVE rows were observed on the owner's Deck on 2026-11-18 and
+are listed in spec #285. INFERRED rows come only from reading Steam's
+minified UI source that day (module 85273 of the Gaming Mode bundle). No
+Deck run has exercised the patched button yet. The regression plan's L-13
+to L-24 and L-27 rows are that run.
+
+### What Steam does (LIVE)
+
+- Steam shows the chevron beside Play when the streaming selector is on
+  and the app's per-client data has more than one entry. In Gaming Mode the
+  "Remote Play Anywhere" condition is always false.
+- The "Play from…" menu lists one row per per-client entry. The local row
+  reads "Play on this Steam Deck". Remote rows read "Stream from <PC>" or
+  "Install on <PC>".
+- Picking a row calls Steam's set-streaming-client function, and Play then
+  acts on the selected client.
+- With a remote client selected, Play shows the action ("Stream") and the
+  PC's name as a second, smaller line. WoWDeck puts the short name there.
+- `local_per_client_data.display_status` is 1 while Steam launches the
+  entry and 4 while it runs (§8.4d). On a Battle.net shortcut that is
+  Battle.net running, not WoW. WoWDeck hands the button back to Steam only
+  while WoW runs, a stream target is selected, or Battle.net is the target
+  and already open.
+
+### What WoWDeck reads or replaces
+
+Each row names the code that uses the property. "Steam's button" means
+Steam's plain Play button and its own menu, which keep working.
+
+| Property | What WoWDeck uses it for | Evidence | When it is missing |
+| --- | --- | --- | --- |
+| Wrapper export: a `forwardRef` whose render source contains `navigator:` and `instance:` (`isPlayButtonWrapper`, `src/steamLaunchPatch.tsx`) | Finds the exported component that renders Steam's private Play button class | INFERRED | No patch. One warning ("no Play button wrapper"), and Steam's button |
+| `ShowStreamingMenu`, `GetTextForRemoteClientAction` and `render` on the class prototype (`isPlayButtonClass`) | Tells the Play button class from anything else the wrapper returns | INFERRED | The wrapper's element passes through unpatched, without a warning, and Steam's button stays |
+| mobx-react v9's class `render` installer: on first render it defines the instance's own `render` with `writable: false, configurable: false` (`hookObserverRender`, `src/observerRender.ts`) | WoWDeck replaces the prototype's render and wraps the instance's render as mobx defines it; an instance rendered earlier remounts through a new key on the wrapper's element | LIVE (2026-11-18: assigning to a mounted instance's `render` did nothing) | That button stays Steam's plain Play. A hook that throws logs one warning ("render not patchable") |
+| A component above the Play button re-renders Steam's wrapper, and React remounts the button when the wrapper's element gains or loses WoWDeck's key (`remountPlayButton`, `src/steamLaunchPatch.tsx`) | Applies Options' "Choose the WoW version from Play" (#286) to an open game page: on remounts Play through the patch, off disposes the patch and remounts Steam's own | LIVE for the keyed remount on plugin load (2026-11-18). INFERRED for the unkeyed remount after disposal until the L-27 run | One warning ("no component above the Play button to remount it"). Turned on, Play stays Steam's until the page reopens. Turned off, the patched button stops reading launch state and draws Steam's tree on its next render |
+| `overview.appid` on the instance's props | Decides whether the page is a linked WoW entry | INFERRED | The button stays Steam's |
+| `overview.BIsSelectedClientLocal()` | Tells a stream target from this Deck: Steam's labels while streaming, and the checkmark on our row only while local | INFERRED | WoWDeck treats this Deck as selected, so its label replaces Steam's Stream label even with a stream target |
+| `ShowStreamingMenu(event)` on the instance (`openMenu`) | Opens Steam's own "Play from…" menu, anchored to Play | INFERRED | One warning ("no Play from menu"). The chevron does nothing, Play still works |
+| The jsx runtime module (exports `jsx`, `jsxs`, `Fragment`), called as `module.jsx(...)` at call time (`openMenu`) | For the one synchronous `ShowStreamingMenu` call, WoWDeck swaps `jsx` so Steam's menu element comes back wrapped in `WowPlayMenu` | INFERRED | If the module is missing or Steam binds `jsx` at import, Steam's unchanged menu opens and one warning says so |
+| `onStreamingTargetSelected` prop on the menu element (`openMenu`) | Marks the one element the swapped `jsx` wraps | INFERRED | Same as the jsx runtime: Steam's unchanged menu and one warning |
+| `isLocalClient` and `client.clientid` props on each menu row (`replaceLocalPlayRow`, `src/steamPlayButton.ts`) | Finds "Play on this Steam Deck" to replace, and the local client id WoWDeck sets when a row is picked | INFERRED | One warning ("unexpected Play from menu"), and Steam's menu |
+| `showThrobber` and `text` props on Play's label (`isLabel`) | Finds the label whose `remoteText` carries the short name | INFERRED | One warning ("unexpected Play button"), and Steam's button |
+| `remoteText` on that label | Steam renders it in place of `text`, in the slot for the PC's name | INFERRED. The look with a stream target is LIVE | The short name doesn't show. Play still starts the chosen client |
+| `overview` prop, no `onDismiss`, and an `onClick` or `onMouseUp` handler on the chevron (`isSelector`) | Finds Steam's chevron so WoWDeck can route it to its menu | INFERRED | WoWDeck adds its own chevron. If Steam's chevron is there but unrecognised, the row could show two |
+| `onDismiss` on the Remote Play explainer (`isExplainer`) | Places WoWDeck's chevron before the explainer, where Steam puts its own | INFERRED | WoWDeck's chevron goes last in the row |
+| `onMouseUp` or `onClick` on Play and the chevron (`handlerProps`) | Steam sets one or the other per build. WoWDeck replaces whichever Steam set | INFERRED | With neither, WoWDeck sets `onClick` |
+| CSS module keys in `CLASS_KEYS` (`src/components/WowPlayButton.tsx`): `PlayButtonContainer`, `PlayButton`, `ButtonChild`, `HasRemoteText`, `ShowingStreaming`, `ButtonText`, `ButtonRemoteText`, `StreamingSelector`, `StreamingContextMenuItem`, `CheckContainer`, `StreamingTargetLabel` | Finds the tree, styles Play like Steam's Stream button and styles our menu rows like Steam's | LIVE (2026-11-18: our button and menu rows carry the same classes and computed styles as Steam's Stream button and "Play from" rows) | `steamPlayClasses()` returns null. The button stays Steam's, without a warning |
+| `.PlayButton svg` rule: 24 × 24 px with 16 px before the label (`TargetIcon`, `src/components/WowPlayButton.tsx`) | Sizes and spaces the target's icon like Steam's play and stream glyphs, so the icon is an `<svg>` wrapping an `<image>` | LIVE (2026-11-18, computed style on the Vampire Survivors Stream button) | An `<img>` gets no gap before the label |
+| Steam's check component, source names `SVGIcon_DialogCheck` and `highlightColor` (`SteamMenuCheck`, `src/steamIcons.tsx`) | Marks the selected menu row with Steam's blue gradient check | LIVE (2026-11-18, exported, used by the "Play from" menu) | A plain check (`FaCheck`) |
+| Steam's arrow component, prop `direction`, down path `M17.98 26.54` (`SteamChevronDown`, `src/steamIcons.tsx`) | Draws our chevron as Steam's filled triangle | LIVE (2026-11-18, exported, the same SVG as Steam's own chevron) | A thin chevron (`FaChevronDown`) |
+| `SteamClient.Apps.SetStreamingClientForApp(appId, clientId)` (`setSteamStreamingClient`, `src/steamLaunchActions.ts`) | Points Steam's Play back at this Deck when a WoW row is picked | Steam's own rows calling it is LIVE. WoWDeck's call is INFERRED | Play keeps Steam's selected client. WoWDeck logs a warning if the call throws |

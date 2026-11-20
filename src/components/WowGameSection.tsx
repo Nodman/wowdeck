@@ -1,15 +1,18 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { DialogButton, Focusable } from "@decky/ui";
 import { FaBoxOpen } from "react-icons/fa";
 import { engine } from "../engineLink";
 import { pluginToast, toastError } from "../toast";
 import { createAddonActions } from "../addonActions";
-import { settingsStore } from "../settings";
+import { settingsStore, steamLaunchMenuOn } from "../settings";
 import { openPanel } from "../openPanel";
 import { activeInstallationId } from "../session";
 import { STEAM, descriptionStyle } from "../steamTheme";
 import { updateSummaryText } from "../steamLibrary";
 import { steamUpdates } from "../steamUpdates";
+import { steamLaunchState } from "../steamLaunchActions";
+import { useResource } from "../useResource";
+import type { AttachLaunch } from "../steamLaunchPatch";
 
 const BUTTON = { minWidth: 0, width: "auto", padding: "8px 16px" } as const;
 
@@ -23,7 +26,24 @@ const BUTTON = { minWidth: 0, width: "auto", padding: "8px 16px" } as const;
  * badge). Appearing shows the last counts at once and, when the option is
  * on, checks in the background at most every 15 minutes.
  */
-export function WowGameSection() {
+export function WowGameSection({
+  appId,
+  attachLaunch,
+}: {
+  appId: number;
+  attachLaunch: AttachLaunch;
+}) {
+  const anchor = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    return anchor.current ? attachLaunch(anchor.current, appId) : undefined;
+  }, [appId, attachLaunch]);
+
+  // "Choose the WoW version from Play" off: no launch read, no launch lines.
+  const launchMenu = useSyncExternalStore(settingsStore.subscribe, () =>
+    steamLaunchMenuOn(settingsStore.get()),
+  );
+  const launch = useResource(steamLaunchState, launchMenu ? String(appId) : null);
+  const checkingLaunch = launch.loading && !launch.data;
   const { summary, checking } = useSyncExternalStore(steamUpdates.subscribe, steamUpdates.get);
   const [updating, setUpdating] = useState(false);
 
@@ -59,6 +79,7 @@ export function WowGameSection() {
 
   return (
     <div
+      ref={anchor}
       className="wowdeck-game-section"
       style={{
         display: "flex",
@@ -90,6 +111,10 @@ export function WowGameSection() {
         >
           {status}
         </div>
+        {launch.error && (
+          <div style={{ ...descriptionStyle, color: STEAM.danger }}>{launch.error}</div>
+        )}
+        {checkingLaunch && <div style={descriptionStyle}>Checking WoW launch status…</div>}
       </div>
       <Focusable flow-children="row" style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
         {total > 0 && (
@@ -104,6 +129,15 @@ export function WowGameSection() {
         >
           Check for updates
         </DialogButton>
+        {launch.error && (
+          <DialogButton
+            style={BUTTON}
+            disabled={launch.loading}
+            onClick={() => void launch.refresh()}
+          >
+            Retry
+          </DialogButton>
+        )}
         <DialogButton style={BUTTON} onClick={open}>
           Open
         </DialogButton>

@@ -6,6 +6,10 @@ What's new in each version of WoWDeck Addon Manager. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Pick the WoW client Steam's Play button starts from its menu, even with Battle.net closed. Options can turn it off.
+
 ### Fixed
 
 - Sources no longer says a revoked TradeSkillMaster account stays signed in.

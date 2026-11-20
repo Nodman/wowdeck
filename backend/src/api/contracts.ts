@@ -95,7 +95,7 @@ export interface Installation {
   /** Absolute path of the Interface/AddOns directory. */
   addonsPath: string;
   displayName: string;
-  /** Short client name, e.g. "Forever Beta" (CLIENT_DISPLAY_NAMES). */
+  /** Short client name, e.g. "Forever Beta" (client table, wow/clients.ts). */
   clientName: string;
   /** WowUp's full client name, e.g. "World of Warcraft: Forever Beta". */
   clientFullName: string;
@@ -672,6 +672,68 @@ export interface TradeSkillMasterAuthStatus {
   account: string | null;
 }
 
+/** The Battle.net launcher's target id in `launch.select` and in saved choices. */
+export const BATTLE_NET_LAUNCH_TARGET = "battlenet";
+/** The Battle.net launcher's name in the menu row and on the Play button. */
+export const BATTLE_NET_NAME = "Battle.net";
+/**
+ * The Classic row's target id: one row for Mists of Pandaria Classic,
+ * Classic Era and Anniversary, which Battle.net starts with one code.
+ */
+export const CLASSIC_LAUNCH_TARGET = "classic";
+
+interface LaunchTargetFields {
+  /**
+   * What `launch.select` takes: BATTLE_NET_LAUNCH_TARGET,
+   * CLASSIC_LAUNCH_TARGET, or a Retail or Forever installation id.
+   */
+  id: string;
+  /** The menu row's label: the client's full name, or BATTLE_NET_NAME. */
+  name: string;
+  /** The Play button's second line: the client's short name, or BATTLE_NET_NAME. */
+  shortName: string;
+}
+
+/** The Battle.net launcher itself: Steam's own launch, with no launch ask. */
+export interface BattleNetLaunchClient extends LaunchTargetFields {
+  kind: "battlenet";
+  id: typeof BATTLE_NET_LAUNCH_TARGET;
+}
+
+/** A WoW row Battle.net can be asked to start: Retail, Classic or Forever. */
+export interface WowLaunchClient extends LaunchTargetFields {
+  kind: "wow";
+}
+
+export type LaunchClient = BattleNetLaunchClient | WowLaunchClient;
+
+export interface LaunchState {
+  /**
+   * Battle.net first, then a row for each of Retail, Classic and Forever
+   * that Battle.net lists as installed in the shortcut's prefix.
+   */
+  clients: LaunchClient[];
+  /** The saved choice for this shortcut; Battle.net when none is saved. */
+  target: LaunchClient;
+  entryRunning: boolean;
+  gameRunning: GameRunning;
+  busy: boolean;
+}
+
+export type LaunchCompletion = {
+  appId: number;
+  /**
+   * The short name of the client that started (Classic names its version,
+   * e.g. "Classic Era"), else the target's.
+   */
+  clientName: string;
+  /**
+   * `not-started`: Battle.net took the ask, yet no target client ran in the
+   * window; Battle.net stays open for its own Play.
+   */
+  outcome: "confirmed" | "steam-refused" | "never-ready" | "ask-failed" | "not-started" | "unconfirmed";
+};
+
 export interface MethodMap {
   /** Local removal and optional account cleanup have independent outcomes. */
   "tradeskillmaster.cleanupPreview": { params: { installationId: string }; result: TradeSkillMasterAccount["follows"] };
@@ -905,6 +967,38 @@ export interface MethodMap {
     params: Record<string, never>;
     result: { cancelled: boolean };
   };
+  /**
+   * Saves the shortcut's launch target. It never changes My Addons'
+   * active installation.
+   */
+  "launch.select": {
+    params: { appId: number; targetId: string };
+    result: { target: LaunchClient };
+  };
+  "launch.state": {
+    params: { appId: number };
+    result: { state: LaunchState | null };
+  };
+  "launch.start": {
+    params: { appId: number; canStartSteam?: boolean; steamEntryRunning?: boolean };
+    result: { state: LaunchState | null; steamStart?: { gameId: string; attemptId: string } };
+  };
+  "launch.steamRefused": {
+    params: { attemptId: string };
+    result: void;
+  };
+  /**
+   * One client's icon for the Play button: a data: URL of a single-image
+   * ICO, the smallest image of at least 48 px. Null means WoWDeck's glyph
+   * (no such client, no icon, or the read failed; a failed read is tried
+   * again on the next call). Kept out of `launch.state`, which the page
+   * polls every 2 s.
+   */
+  "launch.icon": {
+    params: { appId: number; targetId: string };
+    result: { icon: string | null };
+  };
+
   "installations.list": {
     params: Record<string, never>;
     result: { installations: Installation[] };
@@ -1419,6 +1513,13 @@ export interface CurseForgeAuthStatus {
 
 export interface PluginSettings {
   selectedInstallationId: string | null;
+  /**
+   * Explicit launch target by Steam app ID: a Retail or Forever installation
+   * id, CLASSIC_LAUNCH_TARGET or BATTLE_NET_LAUNCH_TARGET. A Mists, Classic
+   * Era or Anniversary installation id saved by an earlier picker reads as
+   * Classic. Engine-written.
+   */
+  steamLaunchTargets: Record<string, string>;
   enabledProviders: string[] | null;
   customWowPaths: string[];
   /** User-supplied CurseForge API key (never logged, never echoed in full). */
@@ -1508,6 +1609,13 @@ export interface PluginSettings {
   steamAutoCheck: boolean;
   /** Badge on the linked game's tile on Steam's home screen; off = a kill switch if a Steam update breaks it. */
   steamBadge: boolean;
+  /**
+   * WoWDeck's launch target choice on Steam's Play button on the linked game
+   * page (#284, ADR 0016); the off switch is #286. Off: Steam's own Play button and "Play from…"
+   * menu, and the addons section drops its launch lines. A kill switch if a
+   * Steam update breaks the patch. `steamLaunchTargets` is kept while off.
+   */
+  steamLaunchMenu: boolean;
   /** My Addons hides libraries (addons installed only as another's dependency, WF-22). */
   hideLibraries: boolean;
   /** My Addons hides unmanaged addons (installed manually, never updated). */
@@ -1791,6 +1899,7 @@ export type UpdateAllProgress = {
 };
 
 export interface EventMap {
+  "launch.completed": LaunchCompletion;
   /** An automatic update ran and updated or failed something (WF-02). */
   "addons.autoUpdated": { result: AutoUpdateResult };
   "tradeskillmaster.changed": Record<string, never>;
