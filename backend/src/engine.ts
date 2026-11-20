@@ -17,6 +17,7 @@ import { join } from "node:path";
 import type { MethodMap, MethodName, OperationResult } from "./api/contracts";
 import { JsonlServer } from "./bridge/jsonl";
 import { createStateStore } from "./wow/storage/StateStore";
+import type { StageFs } from "./wow/fs/StageFs";
 import { NetworkClient } from "./wow/net/network";
 import { ProviderRegistry } from "./wow/providers/provider-registry";
 import { WowUpHubProvider } from "./wow/providers/wowup-hub/WowUpHubProvider";
@@ -94,6 +95,8 @@ export interface EngineConfig {
   out?: (line: string) => void;
   /** Process observation and launch asks; this machine's when unset (tests pass fake processes). */
   launchWorld?: LaunchWorld;
+  /** The filesystem state writes go through; the real one except in fault-injection tests. */
+  fs?: StageFs;
 }
 
 export const DEFAULT_URLS: EngineUrls = {
@@ -138,7 +141,7 @@ export interface Engine {
 export function assembleEngine(config: EngineConfig): Engine & { start(): Promise<void> } {
   const { backendVersion, dataDir, homeDir, urls, network, now } = config;
   const server = new JsonlServer(config.out);
-  const store = createStateStore(dataDir);
+  const store = createStateStore(dataDir, config.fs);
   /**
    * The optional GitHub token (Options › Addon sources › GitHub), read live: a token saved
    * later in the session is picked up by the next request. The GitHub addon

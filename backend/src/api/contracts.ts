@@ -1426,6 +1426,10 @@ export interface MethodMap {
     params: { refresh?: boolean; manual?: boolean };
     result: { installations: Array<{ installationId: string; displayName: string; updates: number }> };
   };
+  /**
+   * Fails when the state file can't be written: the engine then keeps the
+   * settings it had, so an answer always matches what a restart reads.
+   */
   "settings.set": {
     params: { settings: Partial<PluginSettings> };
     result: { settings: PluginSettings };
