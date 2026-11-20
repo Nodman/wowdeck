@@ -590,8 +590,8 @@ while checking, pinned to the top-right of the element framing the tile
 image (`steamDom/homeBadge.ts`; DOM, because no Decky plugin patches home tiles;
 `pointer-events: none`, never focusable). The band and the badge share one
 summary (`steamUpdates.ts`); appearing shows the last counts and, with
-"Check for updates when shown" on, checks in the background at most every
-15 minutes. "Show a badge on its tile" is also the badge's kill switch;
+"Check for updates" on, checks in the background at most every
+15 minutes. "Tile badge" is also the badge's kill switch;
 Show in Steam turns off the band, the badge and Play together. DEVICE (2026-10-16,
 after a restart): badge on the Recent-row tile at boot, followed the tile
 when it shrank; the boot check ran (state written 30 s after boot, the

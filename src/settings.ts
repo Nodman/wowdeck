@@ -10,7 +10,7 @@ export const settingsStore = createSettingsStore({
 });
 
 /**
- * Options' "Choose the WoW version from Play" (#286), read as off until the
+ * Options' "Play starts WoW" (#286), read as off until the
  * engine's settings arrive: Steam's Play button and the launch reads wait
  * for the player's real choice.
  */

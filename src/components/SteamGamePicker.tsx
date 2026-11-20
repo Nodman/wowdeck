@@ -1,12 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import {
   DialogBody,
-  DialogButton,
   DialogControlsSection,
-  DialogFooter,
   DialogHeader,
   Field,
-  Focusable,
   ModalRoot,
   TextField,
   showModal,
@@ -93,19 +90,17 @@ function useShortcutIcons(shown: SteamGame[]): ReadonlyMap<number, string> {
  * Pick the Steam library entry that launches WoW (BEYOND-05): one text row
  * to narrow down (S28), then the non-Steam shortcuts as rows, likely WoW
  * entries first (WoW itself, or the Battle.net launcher people add); A links
- * one beside the games already linked. "Unlink" for each game the player
- * added; B leaves it as it was. The panel is unmounted while this is open
- * (G4): `onPick` and `onUnlink` go to the engine (linkedGamesStore).
+ * one beside the games already linked; B leaves it as it was. Removing a
+ * linked game is the Steam library modal's job. The panel is unmounted while
+ * this is open (G4): `onPick` goes to the engine (linkedGamesStore).
  */
 function SteamGamePicker({
   linked,
   onPick,
-  onUnlink,
   closeModal,
 }: {
   linked: LinkedGame[];
   onPick: (game: SteamGame) => void;
-  onUnlink: (game: SteamGame) => void;
   closeModal?: () => void;
 }) {
   const [query, setQuery] = useState("");
@@ -117,11 +112,6 @@ function SteamGamePicker({
     onPick(game);
     closeModal?.();
   };
-  const unlink = (game: SteamGame) => {
-    onUnlink(game);
-    closeModal?.();
-  };
-  const added = linked.filter((game) => game.source === "added");
   return (
     <ModalRoot onCancel={closeModal} closeModal={closeModal}>
       <DialogHeader>World of Warcraft in Steam</DialogHeader>
@@ -164,18 +154,6 @@ function SteamGamePicker({
           </DialogControlsSection>
         </ScrollBuffer>
       </DialogBody>
-      {added.length > 0 && (
-        <DialogFooter>
-          <Focusable flow-children="row" className="DialogTwoColLayout _DialogColLayout">
-            {added.map((game) => (
-              <DialogButton key={game.appId} onClick={() => unlink(game)}>
-                Unlink {game.name}
-              </DialogButton>
-            ))}
-            <DialogButton onClick={closeModal}>Cancel</DialogButton>
-          </Focusable>
-        </DialogFooter>
-      )}
     </ModalRoot>
   );
 }
@@ -248,14 +226,10 @@ function IconSlot({ icon }: { icon?: string }) {
   );
 }
 
-export function openSteamGamePicker(
-  linked: LinkedGame[],
-  onPick: (game: SteamGame) => void,
-  onUnlink: (game: SteamGame) => void,
-): void {
+export function openSteamGamePicker(linked: LinkedGame[], onPick: (game: SteamGame) => void): void {
   const close = () => modalResult.Close();
   const modalResult = showModal(
-    <SteamGamePicker linked={linked} onPick={onPick} onUnlink={onUnlink} closeModal={close} />,
+    <SteamGamePicker linked={linked} onPick={onPick} closeModal={close} />,
     window,
     { strTitle: "World of Warcraft in Steam", bHideMainWindowForPopouts: false },
   );

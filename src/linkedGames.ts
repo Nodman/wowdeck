@@ -24,7 +24,7 @@ export interface LinkedGamesStore extends Pick<Store<LinkedGamesState>, "get" | 
   changed(linked: LinkedGames): void;
   /** Link a game from Steam's library; toasts the outcome. Resolves to whether it was linked. */
   add(game: SteamGameLink): Promise<boolean>;
-  /** Unlink a game the player added; toasts the outcome. Resolves to whether it was unlinked. */
+  /** Unlink any linked game (a found one stays removed); toasts the outcome. Resolves to whether it was removed. */
   remove(game: SteamGameLink): Promise<boolean>;
 }
 
@@ -62,13 +62,10 @@ export function createLinkedGamesStore(deps: {
       try {
         replace(await deps.rpc("linkedGames.remove", { appId: game.appId }));
       } catch (e) {
-        deps.toast(`Couldn't unlink ${game.name}`, errorText(e));
+        deps.toast(`Couldn't remove ${game.name}`, errorText(e));
         return false;
       }
-      deps.toast(
-        "Steam link removed",
-        `${game.name}'s game page and tile no longer show addon updates`,
-      );
+      deps.toast(`Removed ${game.name}`, "");
       return true;
     },
   };
@@ -80,6 +77,19 @@ export function createLinkedGamesStore(deps: {
  */
 export function shownLinkedGames(settings: SettingsState, linked: LinkedGamesState): LinkedGame[] {
   return settings.loaded && linked.loaded && linked.linked.enabled ? linked.linked.games : [];
+}
+
+/**
+ * Options' Steam library status line: "On · World of Warcraft" (the one
+ * linked game), "On · 2 games", "On · No games" or "Off"; empty until the
+ * engine has answered.
+ */
+export function steamLibraryStatus({ linked, loaded }: LinkedGamesState): string {
+  if (!loaded) return "";
+  if (!linked.enabled) return "Off";
+  const [only] = linked.games;
+  if (linked.games.length === 1 && only) return `On · ${only.name}`;
+  return linked.games.length === 0 ? "On · No games" : `On · ${linked.games.length} games`;
 }
 
 /** The one linked-games store, wired to the engine. */

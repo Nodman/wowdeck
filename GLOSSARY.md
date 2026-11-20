@@ -317,7 +317,9 @@ _Avoid_: product code, launch UID
 **Linked game**:
 A Steam library game WoWDeck adds addon updates and Play to: the section on
 its game page, the badge on its tile and the WoW version choice on Play.
-WoWDeck either found it automatically or the player added it. The engine
+WoWDeck either found it automatically or the player added it. The player
+can remove any linked game, and a found game they removed stays removed
+through later scans. The engine
 keeps the one list, and the UI and the launch code both read it. With Show
 in Steam off, no game counts as linked, but WoWDeck keeps the list.
 _Avoid_: manual link, Steam link, detected link, Steam entry

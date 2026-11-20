@@ -107,7 +107,7 @@ export function isLinkedApp(appId: number): boolean {
 
 /**
  * This shortcut's launch state, read only on a linked page while Options'
- * "Choose the WoW version from Play" is on. Off, a button the patch couldn't
+ * "Play starts WoW" is on. Off, a button the patch couldn't
  * remount stops reading and draws Steam's own tree.
  */
 function useLaunchState(appId: number) {

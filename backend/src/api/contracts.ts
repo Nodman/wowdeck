@@ -1042,7 +1042,13 @@ export interface MethodMap {
     params: SteamGameLink;
     result: LinkedGames;
   };
-  /** Unlink a game the player added. Fires linkedGames.changed. */
+  /**
+   * Unlink any linked game. A found game goes on the removed list
+   * (`steamRemovedGames`) and stays unlinked through later automatic scans
+   * and restarts; an added game is deleted. Fails when the app id isn't
+   * linked or the state file can't take the change. Fires
+   * linkedGames.changed.
+   */
   "linkedGames.remove": {
     params: { appId: number };
     result: LinkedGames;
@@ -1663,6 +1669,11 @@ export interface PluginSettings {
    * Replaces the hand-made `steamGame` link.
    */
   steamAddedGames: SteamGameLink[];
+  /**
+   * The found games the player removed: automatic scans leave them
+   * unlinked. Engine-written through linkedGames.remove, never settings.set.
+   */
+  steamRemovedGames: SteamGameLink[];
   /** Check for addon updates in the background when the linked game's page or tile appears (at most every 15 min). */
   steamAutoCheck: boolean;
   /** Badge on the linked game's tile on Steam's home screen; off = a kill switch if a Steam update breaks it. */

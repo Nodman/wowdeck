@@ -209,14 +209,20 @@ and remembered client choice apply after the root is known.
 
 Discovery runs at engine startup and through Find WoW. Its links are
 evidence only. `LinkedGameList` (`backend/src/wow/installation/LinkedGames.ts`)
-builds the linked games (GLOSSARY: Linked game) on every read from two
+builds the linked games (GLOSSARY: Linked game) on every read from three
 sources:
 
 - **Found automatically.** Every Steam game a scan linked to an
-  installation, hidden installations included.
+  installation, hidden installations included, unless the player removed
+  it.
+- **Removed.** The found games the player removed in the Steam library
+  modal (`steamRemovedGames`, changed only through `linkedGames.remove`).
+  Scans at engine start and through Find WoW leave this list as it is, so
+  a removed game stays unlinked through rescans and restarts.
 - **Added by you.** The games the player picked in Options
   (`steamAddedGames`, changed only through `linkedGames.add` and
   `linkedGames.remove`). Adding a game a scan already found adds nothing.
+  Removing an added game deletes it instead of remembering it.
 
 The list holds one entry per app id. A game that is both found and added
 counts as found. `linkedGames.get` returns the list together with Show in

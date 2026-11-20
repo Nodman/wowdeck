@@ -12,7 +12,7 @@ What's new in each version of WoWDeck Addon Manager. The format follows
 
 ### Fixed
 
-- Turning off Steam linking in Options now hides WoWDeck on every game page, and Play's version choice works on games you picked yourself.
+- Turning off Steam linking now hides WoWDeck on every game page, any linked game can be removed, and Play's version choice works on games you picked.
 - Options now says when a setting couldn't be saved, and changing a setting twice in a row keeps your last choice.
 - Sources no longer says a revoked TradeSkillMaster account stays signed in.
 

@@ -3,7 +3,7 @@
  * `p.png`) and the element that frames that image, in the window `findSP()`
  * returns.
  * Fails as: no tile found -> no badge; nothing else changes.
- * Kill switch: Options -> Steam library -> "Show a badge on its tile"
+ * Kill switch: Options -> Steam library -> "Tile badge"
  * (settings.steamBadge), or Show in Steam (settings.steamEnabled).
  */
 

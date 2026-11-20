@@ -256,6 +256,8 @@ const RULES: Rules = {
   steamEnabled: toggle(true),
   // Changed through linkedGames.add and linkedGames.remove only.
   steamAddedGames: { default: () => [], normalize: normalizeSteamGames, userWritable: false },
+  // Changed through linkedGames.remove only.
+  steamRemovedGames: { default: () => [], normalize: normalizeSteamGames, userWritable: false },
   steamAutoCheck: toggle(true),
   steamBadge: toggle(true),
   steamLaunchMenu: toggle(true),

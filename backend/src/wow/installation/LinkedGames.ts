@@ -4,7 +4,8 @@
  * the frontend and the launch code alike, so they can't disagree.
  *
  * The list is derived on every read from what detection found (each
- * installation's Steam games, hidden installations included) and the games
+ * installation's Steam games, hidden installations included), less the found
+ * games the player removed (settings `steamRemovedGames`), plus the games
  * the player added (settings `steamAddedGames`). Show in Steam
  * (`steamEnabled`) decides whether any of it counts; off keeps the list.
  */
@@ -16,14 +17,21 @@ import { normalizeSteamGame } from "../storage/settings";
 
 export class LinkedGameList {
   constructor(
-    private readonly store: Pick<StateStore, "settings" | "updateSettings" | "settingsListeners">,
+    private readonly store: Pick<
+      StateStore,
+      "settings" | "updateSettings" | "saveSettings" | "settingsListeners"
+    >,
     /** Every installation, hidden ones too, with the Steam games detection found for it. */
     private readonly installations: () => Array<{ steamGames?: SteamGameLink[] }>,
     /** Hears every change: linkedGames.changed. */
     private readonly changed: (games: LinkedGames) => void,
   ) {
     store.settingsListeners.add(({ before, after }) => {
-      if (before.steamEnabled !== after.steamEnabled || before.steamAddedGames !== after.steamAddedGames) {
+      if (
+        before.steamEnabled !== after.steamEnabled ||
+        before.steamAddedGames !== after.steamAddedGames ||
+        before.steamRemovedGames !== after.steamRemovedGames
+      ) {
         this.changed(this.get());
       }
     });
@@ -32,9 +40,10 @@ export class LinkedGameList {
   /** The list and the master switch (linkedGames.get). */
   get(): LinkedGames {
     const games = new Map<number, LinkedGame>();
+    const removed = new Set(this.store.settings.steamRemovedGames.map(({ appId }) => appId));
     for (const installation of this.installations()) {
       for (const { appId, name } of installation.steamGames ?? []) {
-        if (!games.has(appId)) games.set(appId, { appId, name, source: "found" });
+        if (!games.has(appId) && !removed.has(appId)) games.set(appId, { appId, name, source: "found" });
       }
     }
     for (const { appId, name } of this.store.settings.steamAddedGames) {
@@ -62,13 +71,21 @@ export class LinkedGameList {
     return this.get();
   }
 
-  /** Unlink a game the player added. */
-  remove(appId: number): LinkedGames {
-    const added = this.store.settings.steamAddedGames;
-    if (!added.some((game) => game.appId === appId)) {
-      throw new ValidationError("Only a game you added can be unlinked");
-    }
-    this.store.updateSettings({ steamAddedGames: added.filter((game) => game.appId !== appId) });
+  /**
+   * Unlink a linked game: a found one goes on the removed list, so automatic
+   * scans leave it out; an added one is deleted (a found game the player had
+   * also added, from both). Throws when the state file can't take it.
+   */
+  async remove(appId: number): Promise<LinkedGames> {
+    const game = this.get().games.find((linked) => linked.appId === appId);
+    if (!game) throw new ValidationError("That game isn't linked");
+    const { steamAddedGames, steamRemovedGames } = this.store.settings;
+    await this.store.saveSettings({
+      steamAddedGames: steamAddedGames.filter((added) => added.appId !== appId),
+      ...(game.source === "found" && {
+        steamRemovedGames: [...steamRemovedGames, { appId, name: game.name }],
+      }),
+    });
     return this.get();
   }
 

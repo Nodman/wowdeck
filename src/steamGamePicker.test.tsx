@@ -127,11 +127,8 @@ const added = (game: { appId: number; name: string }) => ({ ...game, source: "ad
 const found = (game: { appId: number; name: string }) => ({ ...game, source: "found" as const });
 
 /** Open the picker the way Options does, render it, and read each shortcut row as "name — description". */
-async function openPicker(
-  linked: Linked,
-  unlink: (game: { appId: number; name: string }) => void = () => {},
-): Promise<string[]> {
-  openSteamGamePicker(linked, () => {}, unlink);
+async function openPicker(linked: Linked): Promise<string[]> {
+  openSteamGamePicker(linked, () => {});
   root = createRoot(dom.window.document.getElementById("root")!);
   await act(async () => root!.render(modal!));
   return rows();
@@ -176,15 +173,6 @@ describe("Steam library picker rows (#151)", () => {
       "World of Warcraft — App 2718281828 · Linked automatically",
       "Super Mario 64 — App 1732050807",
     ]);
-  });
-
-  test("the footer unlinks each added game, never a found one", async () => {
-    const unlinked: number[] = [];
-    await openPicker([added(WOW_LUTRIS), found(BNET)], (game) => unlinked.push(game.appId));
-    const buttons = [...dom.window.document.querySelectorAll("#root footer button")];
-    expect(buttons.map((b) => b.textContent)).toEqual(["Unlink World of Warcraft", "Cancel"]);
-    await act(async () => (buttons[0] as HTMLButtonElement).click());
-    expect(unlinked).toEqual([WOW_LUTRIS.appId]);
   });
 
   test("Currently linked shows in green; Linked automatically keeps the description colour", async () => {
