@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { localLaunchWorld, observeLaunch, type LaunchProcess } from "../src/wow/launch/LaunchProcesses";
@@ -83,6 +83,66 @@ test("a replay exit code, generic launcher error or signal leaves delivery uncer
     expect(await ask("bwrap: execvp true: No such file or directory", 0)).toBe(false);
     expect(await ask("", "signal")).toBe(false);
   });
+});
+
+test("a runtime entry point missing readlink proves the request never reached Battle.net", async () => {
+  await replayFixture(async (ask) => {
+    expect(await ask(`${runtime}: line 6: readlink: command not found`, 127)).toBe(true);
+    expect(await ask(`${runtime}: 6: readlink: not found`, 127)).toBe(true);
+    expect(await ask("nsenter: reassociate to namespaces failed: Operation not permitted", 1)).toBe(true);
+    expect(await ask(`${runtime}: line 6: readlink: command not found`, 0)).toBe(false);
+  });
+});
+
+test("replay reaches its runtime inside Steam's mount namespace with credentials preserved", async () => {
+  const root = await mkdtemp(join(tmpdir(), "wowdeck-namespace-"));
+  const runtime = join(root, "_v2-entry-point");
+  const proton = join(root, "proton");
+  const battle = join(root, "Battle.net.exe");
+  const nsenter = join(root, "nsenter");
+  const delivered = join(root, "delivered");
+  const replay: Replay = {
+    reaperPid: process.pid, prefix: root,
+    argv: [runtime, "--verb=run", "--", proton, "run", battle, "--exec=launch WoWF"], env: {},
+  };
+  try {
+    await writeFile(proton, "", { mode: 0o700 });
+    await writeFile(battle, "");
+    await writeFile(runtime, `#!/bin/sh\n[ "$TEST_NAMESPACE" = steam ] || exit 127\nprintf delivered > '${delivered}'\n`, { mode: 0o700 });
+    await writeFile(nsenter, `#!/bin/sh
+[ "$1" = --target ] && [ "$2" = '${process.pid}' ] && [ "$3" = --user ] && [ "$4" = --mount ] && [ "$5" = --preserve-credentials ] && [ "$6" = -- ] || exit 1
+shift 6
+export TEST_NAMESPACE=steam
+exec "$@"
+`, { mode: 0o700 });
+    const world = localLaunchWorld(root, () => [], {
+      namespace: async (pid) => pid === "self" ? "host" : "steam",
+      findExecutable: (name) => name === "nsenter" ? nsenter : null,
+    });
+    await (await world.ask(replay))?.startupFailed;
+    expect(await readFile(delivered, "utf8").catch(() => null)).toBe("delivered");
+    await rm(delivered);
+    const servicePath = localLaunchWorld(root, () => [], {
+      namespace: async (pid) => pid === "self" ? "host" : "steam",
+      findExecutable: (name) => name === "/run/current-system/sw/bin/nsenter" ? nsenter : null,
+    });
+    await (await servicePath.ask(replay))?.startupFailed;
+    expect(await readFile(delivered, "utf8").catch(() => null)).toBe("delivered");
+    const missingHelper = localLaunchWorld(root, () => [], {
+      namespace: async (pid) => pid === "self" ? "host" : "steam",
+      findExecutable: () => null,
+    });
+    expect(await missingHelper.ask(replay)).toBeNull();
+    await writeFile(runtime, `#!/bin/sh\nprintf direct > '${delivered}'\n`, { mode: 0o700 });
+    const sameUser = localLaunchWorld(root, () => [], {
+      namespace: async (pid, kind) => kind === "user" ? "shared-user" : String(pid),
+      findExecutable: () => { throw new Error("A shared user namespace must not need nsenter"); },
+    });
+    await (await sameUser.ask(replay))?.startupFailed;
+    expect(await readFile(delivered, "utf8")).toBe("direct");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 async function replayFixture(run: (
