@@ -175,5 +175,8 @@ was added to production code.
 The remaining-coverage list earlier in this report describes the first
 audit. After the fix and owner sign-in, client switching and successful
 launches pass on Kaptan, and the signed-out refusal path is verified.
-#280 still owns the explicit Steam Deck Experimental run. #283 now lacks
-only its combined DroidDeck run. #257 stays open for those device checks.
+The later [Deck production-plugin run](../2026-11-18-steam-launch-delivery/README.md#production-plugin-verification-on-deck)
+verifies GE and Experimental on the Deck and completes #280. The owner later
+waived the remaining DroidDeck launch verification because DroidDeck has a
+similar feature and its WoW update bug blocks the test. See the
+[DroidDeck disposition](../2026-11-21-droiddeck-launch/README.md#owner-decision-and-cleanup).
