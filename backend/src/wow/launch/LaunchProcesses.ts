@@ -1,4 +1,4 @@
-import { access, readFile, readdir, realpath, stat } from "node:fs/promises";
+import { access, readFile, readdir, readlink, realpath, stat } from "node:fs/promises";
 import { X_OK } from "node:constants";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import { isWowClientExecutable } from "../installation/WowExecutables";
@@ -12,6 +12,16 @@ export interface LaunchProcess {
 }
 
 type ResolvePath = (path: string) => Promise<string | undefined>;
+
+interface ReplayHost {
+  namespace(pid: number | "self", kind: "mnt" | "user"): Promise<string>;
+  findExecutable(name: string): string | null;
+}
+
+const replayHost: ReplayHost = {
+  namespace: (pid, kind) => readlink(`/proc/${pid}/ns/${kind}`),
+  findExecutable: (name) => Bun.which(name),
+};
 
 const filename = (path: string) => basename(path.replaceAll("\\", "/")).toLowerCase();
 
@@ -234,13 +244,15 @@ async function replayStartupFailed(
     const code = await exited;
     const diagnostic = new TextDecoder().decode(prefix.subarray(0, used));
     const failedPreflight = /^(?:pressure-vessel-wrap\[\d+\]: E: Child process exited with code \d+: )?bwrap: execvp true: No such file or directory\r?$/m;
-    return code > 0 && failedPreflight.test(diagnostic);
+    const missingRuntimeTool = /^.*\/_v2-entry-point: (?:line \d+: |\d+: )[^\r\n:]+: (?:command )?not found\r?$/m;
+    const failedNamespace = /^nsenter: (?:reassociate to namespaces failed|setgroups failed|cannot open [^\r\n]*namespace)[^\r\n]*$/m;
+    return code > 0 && (failedPreflight.test(diagnostic) || missingRuntimeTool.test(diagnostic) || failedNamespace.test(diagnostic));
   } catch {
     return false;
   }
 }
 
-export function localLaunchWorld(home: string, getSteamHomes: () => string[]): LaunchWorld {
+export function localLaunchWorld(home: string, getSteamHomes: () => string[], host: ReplayHost = replayHost): LaunchWorld {
   return {
     now: () => performance.now(),
     wait: () => Bun.sleep(1000),
@@ -259,7 +271,26 @@ export function localLaunchWorld(home: string, getSteamHomes: () => string[]): L
           stat(replay.argv[5]!), access(replay.argv[0]!, X_OK), access(replay.argv[3]!, X_OK),
         ]);
         if (!battle.isFile()) return null;
-        const child = Bun.spawn(replay.argv, {
+        const [ownNamespace, steamNamespace] = await Promise.all([
+          host.namespace("self", "mnt"), host.namespace(replay.reaperPid, "mnt"),
+        ]);
+        let argv = replay.argv;
+        if (ownNamespace !== steamNamespace) {
+          const [ownUser, steamUser] = await Promise.all([
+            host.namespace("self", "user"), host.namespace(replay.reaperPid, "user"),
+          ]);
+          // NixOS Steam has its own user and FHS mount namespaces. A
+          // mount-only difference (e.g. PrivateTmp) needs no user entry.
+          if (ownUser !== steamUser) {
+            // Decky's service PATH can omit system utilities even when the
+            // login shell has them. These are host tools, never prefix data.
+            const nsenter = ["nsenter", "/usr/bin/nsenter", "/bin/nsenter", "/run/current-system/sw/bin/nsenter"]
+              .map((name) => host.findExecutable(name)).find((path) => path !== null);
+            if (!nsenter) return null;
+            argv = [nsenter, "--target", String(replay.reaperPid), "--user", "--mount", "--preserve-credentials", "--", ...argv];
+          }
+        }
+        const child = Bun.spawn(argv, {
           cwd: home, env: replay.env, stdin: "ignore", stdout: "ignore", stderr: "pipe",
         });
         releaseWithSession(child, replay);

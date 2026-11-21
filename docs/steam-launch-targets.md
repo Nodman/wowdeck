@@ -59,6 +59,13 @@ options. Proton replaces WINEPREFIX with its own prefix, so WoWDeck ignores
 it there too. A shortcut run through a native wrapper such as `umu-run` keeps
 its WINEPREFIX for installation discovery.
 
+Replay uses the running Steam shortcut's runtime and Proton. When Steam runs
+in separate user and mount namespaces, as on NixOS, WoWDeck enters those
+namespaces with `nsenter` and preserves the caller's credentials before
+starting replay. It keeps direct replay when the user namespace is shared.
+Missing runtime tools and namespace-entry failures produce a request-delivery
+error, rather than a notice that Battle.net did not start the client.
+
 ## Battle.net commands
 
 Battle.net starts a game with `--exec="launch <code>"`. WoW has three codes:

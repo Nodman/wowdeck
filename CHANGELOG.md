@@ -8,7 +8,7 @@ What's new in each version of WoWDeck Addon Manager. The format follows
 
 ### Added
 
-- Pick the WoW client Steam's Play button starts from its menu, even with Battle.net closed. Options can turn it off.
+- Choose which WoW client Steam's Play button starts, including on NixOS. Turn it off in Options.
 - Show in Steam, in Options › Steam library, turns WoWDeck on or off in Steam. Add, remove or find games there too.
 
 ### Fixed
