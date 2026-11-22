@@ -1,5 +1,5 @@
 import { Component, createElement, type ComponentType, type ReactNode } from "react";
-import { findModuleExport } from "@decky/ui";
+import { steamLookup } from "./steamLookup";
 import { FaCheck } from "react-icons/fa";
 
 /**
@@ -23,7 +23,7 @@ function steamComponent(marker: string, also: string): Lookup {
     let component: Lookup = null;
     try {
       component =
-        (findModuleExport((e: unknown) => {
+        (steamLookup.findExport((e: unknown) => {
           if (typeof e !== "function") return false;
           const source = Function.prototype.toString.call(e);
           return source.includes(marker) && source.includes(also);

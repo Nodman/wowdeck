@@ -1,4 +1,4 @@
-import { findClassModule, Focusable, MenuItem } from "@decky/ui";
+import { Focusable, MenuItem } from "@decky/ui";
 import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { FaBoxOpen, FaChevronDown } from "react-icons/fa";
 import type { LaunchClient, LaunchState } from "../../backend/src/api/contracts";
@@ -20,12 +20,16 @@ import {
 } from "../steamPlayButton";
 import { SteamChevronDown, SteamMenuCheck } from "../steamIcons";
 import { pluginToast, toastError } from "../toast";
+import { steamLookup } from "../steamLookup";
 import { useResource } from "../useResource";
 import { createWarnOnce } from "../warnOnce";
 
 /**
- * Steam's Play button CSS module, as its source names the classes. G13:
- * INFERRED; missing keys leave Steam's button (docs/ui/device-notes.md §8.4e).
+ * Steam's Play button CSS module, as its source names the classes: found by
+ * these keys on the webpack client, from Decky 4's `appActionButtonClasses`
+ * on the Vite client (steamLookup.ts). G13: INFERRED on webpack, LIVE on
+ * Vite (Steam Deck 2026-11-22, which maps all but `CheckContainer`); missing
+ * required keys leave Steam's button (docs/ui/device-notes.md §8.4e).
  */
 const CLASS_KEYS = [
   "PlayButtonContainer",
@@ -37,25 +41,18 @@ const CLASS_KEYS = [
   "ButtonRemoteText",
   "StreamingSelector",
   "StreamingContextMenuItem",
-  "CheckContainer",
   "StreamingTargetLabel",
 ] as const;
-export type SteamPlayClasses = Record<(typeof CLASS_KEYS)[number], string>;
+export type SteamPlayClasses = Record<(typeof CLASS_KEYS)[number], string> & {
+  /** The menu check's box; Decky 4's table doesn't name it. */
+  CheckContainer?: string;
+};
 
 let classes: SteamPlayClasses | null | undefined;
 /** Steam's Play button classes, or null when this Steam has no such module. */
 export function steamPlayClasses(): SteamPlayClasses | null {
   if (classes === undefined) {
-    try {
-      classes =
-        typeof findClassModule === "function"
-          ? ((findClassModule((module) =>
-              CLASS_KEYS.every((key) => typeof module[key] === "string"),
-            ) as SteamPlayClasses | undefined) ?? null)
-          : null;
-    } catch {
-      classes = null;
-    }
+    classes = steamLookup.findClasses(CLASS_KEYS, "appActionButtonClasses") ?? null;
   }
   return classes;
 }
