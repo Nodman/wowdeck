@@ -73,6 +73,29 @@ past them, or a player wants Steam's own Play button, turning the option
 off brings that button back. Unlinking the game would do it too, but it
 also removes the addons section.
 
+## Revised 2026-11-21: Play is left to DroidDeck
+
+On DroidDeck, WoWDeck doesn't patch Play (#296). DroidDeck adds one Steam
+game per WoW version, and its Proton wrapper replaces Steam's start of a
+Battle.net game with its own store launcher. The store launcher runs
+DroidDeck's Battle.net driver, `droiddeck-battlenet`, which waits for
+Battle.net and asks it for the game's own version up to three times, 15
+seconds apart. DroidDeck has no setting, flag or hook that stops the ask. Picking another version in
+WoWDeck's menu would send a second ask that races DroidDeck's, and the
+picker wouldn't do what it says.
+
+The engine checks once at startup whether
+`/usr/local/bin/droiddeck-store-launch` exists and is executable. When it
+does, every `launch.*` method answers as for a page with no launch state,
+so the page keeps Steam's own Play button and "Play from…" menu, as with
+the off switch. The linked games answer names DroidDeck as the owner of
+Play. **Play starts WoW** and the saved launch targets stay untouched.
+[Steam game page launch targets](../steam-launch-targets.md#droiddeck)
+has the details.
+
+If DroidDeck later offers a supported way to open Battle.net without the
+ask, a follow-up can turn the patch back on through it.
+
 ## Consequences
 
 - Each Steam client update needs a Deck check of the Play button (the

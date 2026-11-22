@@ -330,8 +330,18 @@ itself, Retail, Classic or Forever. Each WoW row shows only when Battle.net
 lists its client as installed in the shortcut's prefix. Classic is one row
 for Mists of Pandaria Classic, Classic Era and Anniversary. It is saved per
 Steam shortcut, and Battle.net is the default. Choosing one never changes
-the active installation.
+the active installation. On DroidDeck there is none: DroidDeck starts each
+WoW version from its own Steam game, and Steam's own Play button starts the
+version DroidDeck set up for that game. Saved launch targets stay for other
+machines.
 _Avoid_: launch client (for Battle.net), play target
+
+**Play owner**:
+Who starts a linked game when the player presses Play: WoWDeck, or
+DroidDeck when DroidDeck's store launcher is installed. It holds for the
+whole machine, never one game. The engine decides it once at startup and
+reports it in the linked games answer.
+_Avoid_: launch owner, launch mode
 
 **Forever**:
 The live World of Warcraft: Forever client, installed in `_forever_`. It runs

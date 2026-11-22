@@ -123,9 +123,12 @@ afterEach(async () => {
   delete env.appStore;
 });
 
-/** What the engine holds: Show in Steam, the linked games and the removed ones. */
-async function engineHas(held: Omit<LinkedGames, "removed"> & { removed?: SteamGameLink[] }) {
-  const linked: LinkedGames = { removed: [], ...held };
+/** What the engine holds: Show in Steam, the linked games, the removed ones and who owns Play. */
+async function engineHas(
+  held: Omit<LinkedGames, "removed" | "playOwner"> &
+    Partial<Pick<LinkedGames, "removed" | "playOwner">>,
+) {
+  const linked: LinkedGames = { removed: [], playOwner: "wowdeck", ...held };
   fake.answers["settings.get"] = {
     settings: { ...defaultSettings(), steamEnabled: linked.enabled },
   };
@@ -212,7 +215,12 @@ test("a failed read is an error with Retry, never an empty list; Retry reads aga
   ]);
   expect(read()).not.toContain("No games linked");
 
-  fake.answers["linkedGames.get"] = { enabled: true, games: [WOW], removed: [] };
+  fake.answers["linkedGames.get"] = {
+    enabled: true,
+    games: [WOW],
+    removed: [],
+    playOwner: "wowdeck",
+  };
   await act(async () => row("Couldn't load linked games").click());
   await settle();
   expect(read().slice(2, 4)).toEqual([
@@ -260,6 +268,7 @@ test("A on a game row removes it and says so", async () => {
     enabled: true,
     games: [WOW, BNET].filter((game) => game.appId !== appId),
     removed: [],
+    playOwner: "wowdeck",
   });
   await openModal();
   await act(async () => row("Battle.net").click());
@@ -298,6 +307,78 @@ test("flipping Show in Steam saves it, and the page rows follow at once", async 
   await act(async () => toggle.click());
   expect(fake.paramsOf("settings.set")).toEqual([{ settings: { steamEnabled: false } }]);
   expect(row("Tile badge").getAttribute("data-disabled")).toBe("true");
+});
+
+const DROIDDECK_LINE = "Not available on DroidDeck. DroidDeck launches game directly";
+
+test("on DroidDeck, Play starts WoW is greyed out with DroidDeck's line, the other rows work", async () => {
+  await engineHas({ enabled: true, games: [WOW], playOwner: "droiddeck" });
+  await openModal();
+  expect(read().slice(-4)).toEqual([
+    "On these pages",
+    "Check for updates · When the page or tile appears, at most every 15 minutes",
+    "Tile badge · Green when updates are waiting",
+    `Play starts WoW · ${DROIDDECK_LINE} (disabled)`,
+  ]);
+  // Disabled as Show in Steam off greys out a row, so the controller skips
+  // it; the setting itself stays as it was.
+  const play = row("Play starts WoW").querySelector("input")!;
+  expect(play.disabled).toBe(true);
+  expect(play.checked).toBe(true);
+  expect(fake.paramsOf("settings.set")).toEqual([]);
+});
+
+test("on DroidDeck, Show in Steam off greys out all three, Play keeping DroidDeck's line", async () => {
+  await engineHas({ enabled: true, games: [WOW], playOwner: "droiddeck" });
+  await openModal();
+  const showInSteam = () => row("Show in Steam").querySelector("input")!;
+  await act(async () => showInSteam().click());
+  expect(read().slice(-4)).toEqual([
+    "On these pages",
+    "Check for updates · When the page or tile appears, at most every 15 minutes (disabled)",
+    "Tile badge · Green when updates are waiting (disabled)",
+    `Play starts WoW · ${DROIDDECK_LINE} (disabled)`,
+  ]);
+  await act(async () => showInSteam().click());
+  expect(read().slice(-4)).toEqual([
+    "On these pages",
+    "Check for updates · When the page or tile appears, at most every 15 minutes",
+    "Tile badge · Green when updates are waiting",
+    `Play starts WoW · ${DROIDDECK_LINE} (disabled)`,
+  ]);
+});
+
+test("until the linked games answer, Play starts WoW can't be flipped, nor after a failed read", async () => {
+  linkedGamesStore.reset();
+  fake.answers["settings.get"] = { settings: { ...defaultSettings(), steamEnabled: true } };
+  await act(async () => settingsStore.load());
+  // Who owns Play isn't known yet: on DroidDeck this row must never work.
+  const reading = linkedGamesStore.load();
+  await openModal();
+  const play = () => row("Play starts WoW").querySelector("input")!;
+  expect(play().disabled).toBe(true);
+  expect(row("Tile badge").getAttribute("data-disabled")).toBeNull();
+
+  await act(async () => {
+    await fake.next("linkedGames.get").reject("io_error", "disk full");
+    await reading;
+  });
+  expect(read()).toContain("Couldn't load linked games · disk full A: Retry");
+  expect(play().disabled).toBe(true);
+  expect(fake.paramsOf("settings.set")).toEqual([]);
+});
+
+test("without DroidDeck, Play starts WoW is a working toggle that follows Show in Steam", async () => {
+  await engineHas({ enabled: true, games: [WOW] });
+  await openModal();
+  const play = () => row("Play starts WoW").querySelector("input")!;
+  expect(play().disabled).toBe(false);
+  await act(async () => play().click());
+  expect(fake.paramsOf("settings.set")).toEqual([{ settings: { steamLaunchMenu: false } }]);
+  await act(async () => row("Show in Steam").querySelector("input")!.click());
+  expect(read().slice(-1)).toEqual([
+    "Play starts WoW · Pick the version with the arrow beside it (disabled)",
+  ]);
 });
 
 /** Open the picker from the modal's Add a game row. */
@@ -343,6 +424,7 @@ test("picking a game adds it, says so, and focus goes back to Add a game", async
     enabled: true,
     games: [WOW, { appId, name, source: "added" }],
     removed: [],
+    playOwner: "wowdeck",
   });
   await openPicker();
   await act(async () => pickerRow("Lutris").click());
@@ -364,6 +446,7 @@ test("picking a removed game asks the engine to add it back", async () => {
     enabled: true,
     games: [WOW, { ...BNET, source: "found" }],
     removed: [],
+    playOwner: "wowdeck",
   };
   await openPicker();
   await act(async () => pickerRow("Battle.net").click());
@@ -392,7 +475,13 @@ test("with every non-Steam game linked, the picker says so", async () => {
 
 /** Press Find games with the engine answering `found`. */
 async function findGames(found: LinkedGame[]) {
-  fake.answers["linkedGames.find"] = { enabled: true, games: [WOW, ...found], removed: [], found };
+  fake.answers["linkedGames.find"] = {
+    enabled: true,
+    games: [WOW, ...found],
+    removed: [],
+    playOwner: "wowdeck",
+    found,
+  };
   await openModal();
   await act(async () => row("Find games").click());
   await settle();

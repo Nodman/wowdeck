@@ -38,6 +38,8 @@ const UNREAD: LinkedGamesState = {
   enabled: false,
   games: [],
   removed: [],
+  // Until the engine answers, nothing reads it: Steam's pages show nothing of WoWDeck.
+  playOwner: "wowdeck",
   loaded: false,
   error: null,
 };
@@ -47,8 +49,8 @@ export function createLinkedGamesStore(deps: {
   toast(title: string, body: string): void;
 }): LinkedGamesStore {
   const store = createStore<LinkedGamesState>(UNREAD);
-  const replace = ({ enabled, games, removed }: LinkedGames) =>
-    store.set({ enabled, games, removed, loaded: true, error: null });
+  const replace = ({ enabled, games, removed, playOwner }: LinkedGames) =>
+    store.set({ enabled, games, removed, playOwner, loaded: true, error: null });
   /** One change through the engine: its answer replaces the list, and a toast says how it went. */
   const change = async (call: () => Promise<LinkedGames>, done: string, failed: string) => {
     try {

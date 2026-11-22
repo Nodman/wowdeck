@@ -8,7 +8,14 @@ import type {
   RpcRequest,
   Settled,
 } from "../api/contracts";
-import { InstallError, NotFoundError, ProviderError, RecoveryRequiredError, ValidationError } from "../wow/errors";
+import {
+  InstallError,
+  NotFoundError,
+  PlayLeftToDroidDeckError,
+  ProviderError,
+  RecoveryRequiredError,
+  ValidationError,
+} from "../wow/errors";
 import { PathEscapeError } from "../wow/fs/safe-fs";
 import { WtfBackupError } from "../wow/wtf/errors";
 
@@ -32,6 +39,9 @@ export function errorCodeFor(err: unknown): string {
   }
   if (err instanceof NotFoundError) {
     return "not_found";
+  }
+  if (err instanceof PlayLeftToDroidDeckError) {
+    return "play_left_to_droiddeck";
   }
   if (err instanceof ValidationError) {
     return "invalid_request";

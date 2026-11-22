@@ -24,7 +24,7 @@ function fixture(appId = 123) {
     prefixes: ["/steam/steamapps/compatdata/123/pfx"],
     libraries: ["/steam"],
   };
-  const service = new LaunchService(async () => entry, world, (result) => results.push(result));
+  const service = new LaunchService(async () => entry, world, (result) => results.push(result), "wowdeck");
   return {
     service, observation, asks, results, world,
     async at(ms: number) {
@@ -164,6 +164,7 @@ test("picking a linked target works during play and leaves a pending Steam start
       },
     },
     (result) => results.push(result),
+    "wowdeck",
   );
   const save = (target: LaunchClient) => { activeInstallation = target.id; };
   await expect(service.select(123, "unlinked", save)).rejects.toThrow();

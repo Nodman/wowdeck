@@ -94,6 +94,18 @@ export interface LinkedGame extends SteamGameLink {
 }
 
 /**
+ * Who starts a linked game's Play on this machine, decided once at engine
+ * startup. `droiddeck`: DroidDeck's store launcher
+ * (`/usr/local/bin/droiddeck-store-launch`, executable, under the engine's
+ * system root) replaces Steam's start of every Battle.net game, so WoWDeck
+ * leaves Play to it: every `launch.*` method treats every app id as having
+ * no launch state, and `launch.select` is refused with
+ * "play_left_to_droiddeck". Saved launch targets and Play starts WoW stay
+ * as they are. `wowdeck` everywhere else.
+ */
+export type PlayOwner = "wowdeck" | "droiddeck";
+
+/**
  * The engine's one answer to "which Steam games get WoWDeck's section,
  * badge and Play button" (linkedGames.get, linkedGames.changed).
  */
@@ -112,6 +124,8 @@ export type LinkedGames = {
    * Removed.
    */
   removed: SteamGameLink[];
+  /** Who owns Play on this machine (PlayOwner); the same for every game. */
+  playOwner: PlayOwner;
 };
 
 /** linkedGames.find's answer. */
@@ -1011,7 +1025,8 @@ export interface MethodMap {
   };
   /**
    * Saves the shortcut's launch target. It never changes My Addons'
-   * active installation.
+   * active installation. Refused with "play_left_to_droiddeck" while
+   * DroidDeck owns Play (PlayOwner).
    */
   "launch.select": {
     params: { appId: number; targetId: string };

@@ -70,19 +70,19 @@ test("the badge draws nothing, and starts no check, until the settings and the l
   expect(badge()).toBeNull();
   expect(fake.paramsOf("addons.updateSummary")).toEqual([]);
 
-  await load({ enabled: true, games: [WOW], removed: [] });
+  await load({ enabled: true, games: [WOW], removed: [], playOwner: "wowdeck" });
   await settle();
   expect(badge()?.getAttribute("aria-label")).toBe("WoW addon updates available");
 });
 
 test("Show in Steam off removes the badge", async () => {
   stop = startHomeBadge();
-  await load({ enabled: true, games: [WOW], removed: [] });
+  await load({ enabled: true, games: [WOW], removed: [], playOwner: "wowdeck" });
   await settle();
   expect(badge()).not.toBeNull();
   fake.emit({
     event: "linkedGames.changed",
-    params: { enabled: false, games: [WOW], removed: [] },
+    params: { enabled: false, games: [WOW], removed: [], playOwner: "wowdeck" },
   });
   await settle();
   expect(badge()).toBeNull();
@@ -94,7 +94,7 @@ const checks = () => fake.paramsOf("addons.updateSummary").filter((p) => p?.refr
 test("with Tile badge off, a linked tile appearing still starts a check and draws no badge", async () => {
   stop = startHomeBadge();
   await load(
-    { enabled: true, games: [WOW], removed: [] },
+    { enabled: true, games: [WOW], removed: [], playOwner: "wowdeck" },
     { steamBadge: false, steamAutoCheck: true },
   );
   await settle();
@@ -105,7 +105,7 @@ test("with Tile badge off, a linked tile appearing still starts a check and draw
 test("with Check for updates off, a linked tile appearing draws the badge and starts no check", async () => {
   stop = startHomeBadge();
   await load(
-    { enabled: true, games: [WOW], removed: [] },
+    { enabled: true, games: [WOW], removed: [], playOwner: "wowdeck" },
     { steamBadge: true, steamAutoCheck: false },
   );
   await settle();
@@ -116,7 +116,7 @@ test("with Check for updates off, a linked tile appearing draws the badge and st
 test("with Show in Steam off, a linked tile appearing draws nothing and asks the engine nothing", async () => {
   stop = startHomeBadge();
   await load(
-    { enabled: false, games: [WOW], removed: [] },
+    { enabled: false, games: [WOW], removed: [], playOwner: "wowdeck" },
     { steamBadge: true, steamAutoCheck: true },
   );
   await settle();
@@ -126,7 +126,10 @@ test("with Show in Steam off, a linked tile appearing draws nothing and asks the
 
 test("turning Tile badge off removes the badge; the tile stays seen, so it starts nothing", async () => {
   stop = startHomeBadge();
-  await load({ enabled: true, games: [WOW], removed: [] }, { steamBadge: true });
+  await load(
+    { enabled: true, games: [WOW], removed: [], playOwner: "wowdeck" },
+    { steamBadge: true },
+  );
   await settle();
   expect(badge()).not.toBeNull();
   const asked = fake.paramsOf("addons.updateSummary").length;

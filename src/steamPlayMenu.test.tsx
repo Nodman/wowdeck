@@ -95,6 +95,7 @@ test("picking a row selects it and switches Steam back to this Deck, leaving My 
       enabled: true,
       games: [{ appId: 42, name: "WoW", source: "found" }],
       removed: [],
+      playOwner: "wowdeck",
     },
     "launch.state": { state },
     "launch.select": ({ targetId }) => ({
@@ -168,6 +169,7 @@ test("while open, our rows follow the launch state but Steam's menu never update
       enabled: true,
       games: [{ appId: 42, name: "WoW", source: "found" }],
       removed: [],
+      playOwner: "wowdeck",
     },
     "launch.state": () => ({ state: current }),
   });

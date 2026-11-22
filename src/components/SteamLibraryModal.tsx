@@ -59,6 +59,9 @@ const PAGE_TOGGLES: Array<{
   },
 ];
 
+/** Play starts WoW on DroidDeck: DroidDeck starts each game itself (#296). */
+const DROIDDECK_PLAY = "Not available on DroidDeck. DroidDeck launches game directly";
+
 /**
  * Options › Steam library (#287): Show in Steam, the linked games (A
  * removes one, no confirmation: the picker brings it back), Add a game
@@ -73,6 +76,12 @@ export function SteamLibraryModal({ closeModal }: { closeModal?: () => void }) {
   const games = linked.games;
   // Off: the page rows stay in place, greyed out (S21).
   const pagesOn = stored.loaded && stored.settings.steamEnabled;
+  // On DroidDeck, Play starts WoW stays in place, greyed out with
+  // DroidDeck's line; its setting is left as it is for other machines.
+  const playLeft = linked.playOwner === "droiddeck";
+  // Who owns Play is unknown until the linked games load: greyed out
+  // until then, and after a failed read, as the page rows are before settings.
+  const playOn = pagesOn && linked.loaded && !playLeft;
 
   useEffect(() => {
     if (!linkedGamesStore.get().loaded) void linkedGamesStore.load();
@@ -179,17 +188,23 @@ export function SteamLibraryModal({ closeModal }: { closeModal?: () => void }) {
           </DialogControlsSection>
           <DialogControlsSection>
             <DialogControlsSectionHeader>On these pages</DialogControlsSectionHeader>
-            {PAGE_TOGGLES.map(({ key, label, description }) => (
-              <FocusSlot key={key} view={VIEW} id={key}>
-                <ToggleField
-                  label={label}
-                  description={<span style={descriptionStyle}>{description}</span>}
-                  checked={stored.settings[key]}
-                  disabled={!pagesOn}
-                  onChange={(on) => save({ [key]: on })}
-                />
-              </FocusSlot>
-            ))}
+            {PAGE_TOGGLES.map(({ key, label, description }) => {
+              const play = key === "steamLaunchMenu";
+              const left = playLeft && play;
+              return (
+                <FocusSlot key={key} view={VIEW} id={key}>
+                  <ToggleField
+                    label={label}
+                    description={
+                      <span style={descriptionStyle}>{left ? DROIDDECK_PLAY : description}</span>
+                    }
+                    checked={stored.settings[key]}
+                    disabled={play ? !playOn : !pagesOn}
+                    onChange={(on) => save({ [key]: on })}
+                  />
+                </FocusSlot>
+              );
+            })}
           </DialogControlsSection>
         </ScrollBuffer>
       </DialogBody>

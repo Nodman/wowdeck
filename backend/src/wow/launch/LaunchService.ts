@@ -1,5 +1,5 @@
-import { ValidationError } from "../errors";
-import type { GameRunning, LaunchClient, LaunchCompletion, LaunchState, MethodMap } from "../../api/contracts";
+import { PlayLeftToDroidDeckError, ValidationError } from "../errors";
+import type { GameRunning, LaunchClient, LaunchCompletion, LaunchState, MethodMap, PlayOwner } from "../../api/contracts";
 
 export interface LaunchEntry {
   appId: number;
@@ -67,10 +67,15 @@ export class LaunchService {
     private readonly resolve: (appId: number, preferredId?: string) => Promise<LaunchEntry | null>,
     private readonly world: LaunchWorld,
     private readonly completed: (completion: LaunchCompletion) => void,
+    /**
+     * Who owns Play on this machine. DroidDeck: no app id has a launch
+     * entry, so nothing is read, started or asked.
+     */
+    private readonly playOwner: PlayOwner,
   ) {}
 
   private async entry(appId: number): Promise<LaunchEntry | null> {
-    return validAppId(appId) ? this.resolve(appId) : null;
+    return this.playOwner === "wowdeck" && validAppId(appId) ? this.resolve(appId) : null;
   }
 
   private snapshot(entry: LaunchEntry, observed: Observation): LaunchState {
@@ -84,6 +89,7 @@ export class LaunchService {
   }
 
   async select(appId: number, targetId: string, save: (target: LaunchClient) => void): Promise<LaunchClient> {
+    if (this.playOwner === "droiddeck") throw new PlayLeftToDroidDeckError();
     const entry = validAppId(appId) && typeof targetId === "string"
       ? await this.resolve(appId, targetId)
       : null;

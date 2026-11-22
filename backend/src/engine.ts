@@ -3,6 +3,7 @@ import { LaunchService, type LaunchWorld } from "./wow/launch/LaunchService";
 import { localLaunchWorld } from "./wow/launch/LaunchProcesses";
 import { resolveLaunchEntry } from "./wow/launch/LaunchEntries";
 import { LinkedGameList } from "./wow/installation/LinkedGames";
+import { detectPlayOwner } from "./wow/launch/PlayOwner";
 /**
  * The engine's assembly: every service the RPC handlers use, wired from one
  * configuration, and the startup that runs before the first request.
@@ -97,6 +98,11 @@ export interface EngineConfig {
   launchWorld?: LaunchWorld;
   /** The filesystem state writes go through; the real one except in fault-injection tests. */
   fs?: StageFs;
+  /**
+   * The root DroidDeck's store launcher is looked for under (PlayOwner):
+   * `/` when unset, a temporary folder in tests. Nothing else reads it.
+   */
+  systemRoot?: string;
 }
 
 export const DEFAULT_URLS: EngineUrls = {
@@ -317,11 +323,14 @@ export function assembleEngine(config: EngineConfig): Engine & { start(): Promis
   }
 
   const steam = new InstallationDetector({ homeDir });
+  // Checked once: DroidDeck doesn't come or go within an engine's session.
+  const playOwner = detectPlayOwner(config.systemRoot ?? "/");
   const linkedGames = new LinkedGameList(
     store,
     () => installationService.list(),
     (games) => server.emit("linkedGames.changed", games),
     () => steam.steamShortcutAppIds(),
+    playOwner,
   );
   const launch = new LaunchService(
     // Only a linked game's page launches through WoWDeck (Show in Steam on).
@@ -332,6 +341,7 @@ export function assembleEngine(config: EngineConfig): Engine & { start(): Promis
       : null,
     config.launchWorld ?? localLaunchWorld(homeDir, () => steam.steamHomes()),
     (completion) => server.emit("launch.completed", completion),
+    playOwner,
   );
   const deps: HandlerDeps = {
     launch,
