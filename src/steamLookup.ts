@@ -61,7 +61,14 @@ function complete<K extends string>(
 }
 
 export function createSteamLookup(ui: DeckyLookupApi) {
+  function findExportedModule(filter: Filter): Record<string, unknown> | undefined {
+    return attempt(ui.findModule && (() => ui.findModule!(filter))) as
+      Record<string, unknown> | undefined;
+  }
+
   return {
+    findExportedModule,
+
     /** A component, renderer or enum Steam exports, or keeps in module scope. */
     findExport(filter: Filter): unknown {
       return (
@@ -79,9 +86,11 @@ export function createSteamLookup(ui: DeckyLookupApi) {
 
     /** A module (or module scope) matching the filter. */
     findModule(filter: Filter): Record<string, unknown> | undefined {
-      return (attempt(ui.findModule && (() => ui.findModule!(filter))) ??
-        attempt(ui.findScope && (() => ui.findScope!(filter)))) as
-        Record<string, unknown> | undefined;
+      return (
+        findExportedModule(filter) ??
+        (attempt(ui.findScope && (() => ui.findScope!(filter))) as
+          Record<string, unknown> | undefined)
+      );
     },
 
     /**

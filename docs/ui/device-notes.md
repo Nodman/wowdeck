@@ -214,7 +214,7 @@ Decky 4 way. Read on the Deck over CDP that day (LIVE), these changed:
   scope only. `findModuleExport` and `findModuleByExport` miss them, and
   Decky 4's `findVar` and `findModuleScopeByVar` find them. This hit the
   Quick Access Menu renderers (the wide-QAM slide), the Play button
-  wrapper, and the controller glyph module (`findScope`).
+  wrapper, and the controller glyph settings hook.
 - CSS module keys are obfuscated, so `findClassModule` by readable keys
   finds nothing. Decky 4 maps class names per Steam build into its named
   tables. `quickAccessMenuClasses` has `ViewPlaceholder`, `Expanded` and
@@ -224,6 +224,25 @@ Decky 4 way. Read on the Deck over CDP that day (LIVE), these changed:
   button enum, the jsx runtime, `appDetailsClasses.InnerContainer`, the
   game page's `renderFunc` and `overview`, and the Play button class's
   method names.
+
+### Controller glyphs
+
+The webpack settings hook names `GamepadUI_KeyboardNavGlyphsDisabled`.
+Its module exports the glyph and the footer legend. The legend takes
+`rgButtons` and `description` and renders nothing without a description.
+WoWDeck keeps using those exports on webpack.
+
+On Vite, the scope with that hook held 21,225 bindings, including unrelated
+React contexts (DEVICE, CDP, 2026-11-22, CLSTAMP 11255874). Steam's tab bars
+called the same memo component twice. Each call passed `bAllowKeyboard: true`
+and a `button` from the controller enum, once for `LeftBumper` and once for
+`RightBumper`. WoWDeck finds the paired JSX calls in the hook's scope and
+checks that their target is a memo component. The enum also has `QuickMenu`
+and `HomeMenu` keys. WoWDeck shows text if the calls or enum are missing,
+or if the calls identify multiple components.
+
+After deployment, a CDP probe found two loaded 32 px images in the
+WoWDeck nav bar and no text fallbacks (DEVICE, 2026-11-22).
 
 When a lookup finds nothing on either client, its feature falls back as
 its row in §8.4e or its source file's header describes. Decky's tables
