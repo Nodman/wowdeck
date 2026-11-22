@@ -14,6 +14,7 @@ What's new in each version of WoWDeck Addon Manager. The format follows
 ### Fixed
 
 - On SteamOS 3.9.6 with Decky 4, Get Addons widens again and the WoW Play button and controller glyphs show.
+- Get Addons can widen right after a WoWDeck update without reopening the Quick Access Menu.
 - Options now says when a setting couldn't be saved, and changing a setting twice in a row keeps your last choice.
 - Check for updates in Options › Steam library keeps working with the tile badge turned off.
 - Sources no longer says a revoked TradeSkillMaster account stays signed in.
