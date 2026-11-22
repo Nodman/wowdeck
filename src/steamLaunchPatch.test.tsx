@@ -232,6 +232,7 @@ beforeEach(async () => {
       enabled: true,
       games: [{ appId: 42, name: "WoW", source: "found" }],
       removed: [],
+      playOwner: "wowdeck",
     },
     "launch.state": { state },
     "launch.icon": ({ targetId }) => ({ icon: targetId === "forever" ? FOREVER_ICON : null }),
@@ -321,6 +322,16 @@ test("a page opened after the plugin loads renders patched, and other games keep
   await showPage(7);
   await attach(7);
   expect(playText()).toBe("Play");
+});
+
+test("a linked page with no launch state (DroidDeck owns Play) keeps Steam's Play", async () => {
+  fake.answers["launch.state"] = { state: null };
+  patch.install();
+  await showPage();
+  await attach();
+  expect(fake.paramsOf("launch.state")).toEqual([{ appId: 42 }]);
+  expect(playText()).toBe("Play");
+  expect(doc().querySelector("#root .PlayButton")?.className).not.toContain("HasRemoteText");
 });
 
 test("Play from… shows Steam's menu with our rows in place of the local one, then restores Steam's jsx", async () => {

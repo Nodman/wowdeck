@@ -103,6 +103,7 @@ test("a found WoW shortcut is a linked game marked found, and its Play has launc
   const f = await fixture();
   expect(await f.linked()).toEqual({
     enabled: true,
+    playOwner: "wowdeck",
     games: [{ appId: WOW, name: "World of Warcraft", source: "found" }],
     removed: [],
   });
@@ -118,6 +119,7 @@ test("an added Battle.net shortcut detection didn't name gets launch state", asy
 
   expect(await f.engine.call("linkedGames.add", { appId: WOW, name: "Battle.net" })).toEqual({
     enabled: true,
+    playOwner: "wowdeck",
     games: [{ appId: WOW, name: "Battle.net", source: "added" }],
     removed: [],
   });
@@ -138,6 +140,7 @@ test("Show in Steam off keeps the list and unlinks every app id for launch; on r
   await f.engine.call("settings.set", { settings: { steamEnabled: false } });
   expect(await f.linked()).toEqual({
     enabled: false,
+    playOwner: "wowdeck",
     games: [{ appId: WOW, name: "World of Warcraft", source: "found" }],
     removed: [],
   });
@@ -177,6 +180,7 @@ test("upgrade: a hand-made link to a found game is dropped as a duplicate", asyn
   const f = await fixture({ state: oldState({ steamGame: { appId: WOW, name: "World of Warcraft" }, steamAutoLink: true }) });
   expect(await f.linked()).toEqual({
     enabled: true,
+    playOwner: "wowdeck",
     games: [{ appId: WOW, name: "World of Warcraft", source: "found" }],
     removed: [],
   });
@@ -196,6 +200,7 @@ test("upgrade: a hand-made link to a game detection doesn't find becomes an adde
   });
   expect(await f.linked()).toEqual({
     enabled: true,
+    playOwner: "wowdeck",
     games: [
       { appId: WOW, name: "World of Warcraft", source: "found" },
       { appId: 77, name: "Lutris WoW", source: "added" },
@@ -208,6 +213,7 @@ test("upgrade: Link detected Steam games off starts Show in Steam off", async ()
   const f = await fixture({ state: oldState({ steamGame: null, steamAutoLink: false }) });
   expect(await f.linked()).toEqual({
     enabled: false,
+    playOwner: "wowdeck",
     games: [{ appId: WOW, name: "World of Warcraft", source: "found" }],
     removed: [],
   });
@@ -227,10 +233,10 @@ test("linkedGames.changed fires after a scan and after a Show in Steam change", 
   const f = await fixture();
   f.events.splice(0);
   await f.engine.call("installations.detect", {});
-  expect(f.events).toEqual([{ enabled: true, games: [{ appId: WOW, name: "World of Warcraft", source: "found" }], removed: [] }]);
+  expect(f.events).toEqual([{ enabled: true, playOwner: "wowdeck", games: [{ appId: WOW, name: "World of Warcraft", source: "found" }], removed: [] }]);
 
   await f.engine.call("settings.set", { settings: { steamEnabled: false } });
-  expect(f.events.at(-1)).toEqual({ enabled: false, games: [{ appId: WOW, name: "World of Warcraft", source: "found" }], removed: [] });
+  expect(f.events.at(-1)).toEqual({ enabled: false, playOwner: "wowdeck", games: [{ appId: WOW, name: "World of Warcraft", source: "found" }], removed: [] });
   const count = f.events.length;
   await f.engine.call("settings.set", { settings: { steamBadge: false } });
   expect(f.events).toHaveLength(count);
@@ -282,6 +288,7 @@ test("removing a found game unlinks it, through rescans and restarts", async () 
   const f = await fixture();
   expect(await f.engine.call("linkedGames.remove", { appId: WOW })).toEqual({
     enabled: true,
+    playOwner: "wowdeck",
     games: [],
     removed: [{ appId: WOW, name: "World of Warcraft" }],
   });
@@ -311,7 +318,7 @@ test("removing a found game fires linkedGames.changed", async () => {
   const f = await fixture();
   f.events.splice(0);
   await f.engine.call("linkedGames.remove", { appId: WOW });
-  expect(f.events).toEqual([{ enabled: true, games: [], removed: [{ appId: WOW, name: "World of Warcraft" }] }]);
+  expect(f.events).toEqual([{ enabled: true, playOwner: "wowdeck", games: [], removed: [{ appId: WOW, name: "World of Warcraft" }] }]);
 });
 
 test("a found game the player had also added is removed in full", async () => {
@@ -349,6 +356,7 @@ test("the read names the removed games, for the Add a game picker", async () => 
   await f.engine.call("linkedGames.remove", { appId: WOW });
   expect(await f.linked()).toEqual({
     enabled: true,
+    playOwner: "wowdeck",
     games: [],
     removed: [{ appId: WOW, name: "World of Warcraft" }],
   });
@@ -359,6 +367,7 @@ test("adding a removed found game links it as found again and takes it off the r
   await f.engine.call("linkedGames.remove", { appId: WOW });
   expect(await f.engine.call("linkedGames.add", { appId: WOW, name: "World of Warcraft" })).toEqual({
     enabled: true,
+    playOwner: "wowdeck",
     games: [{ appId: WOW, name: "World of Warcraft", source: "found" }],
     removed: [],
   });
@@ -377,6 +386,7 @@ test("Find games brings a removed game back as found and names it; installations
 
   expect(await f.engine.call("linkedGames.find", {})).toEqual({
     enabled: true,
+    playOwner: "wowdeck",
     games: [{ appId: WOW, name: "World of Warcraft", source: "found" }],
     removed: [],
     found: [{ appId: WOW, name: "World of Warcraft", source: "found" }],
@@ -396,6 +406,7 @@ test("Find games fires linkedGames.changed with the restored list", async () => 
   await f.engine.call("linkedGames.find", {});
   expect(f.events.at(-1)).toEqual({
     enabled: true,
+    playOwner: "wowdeck",
     games: [{ appId: WOW, name: "World of Warcraft", source: "found" }],
     removed: [],
   });
@@ -415,11 +426,11 @@ test("a scan forgets added and removed games deleted from shortcuts.vdf", async 
   f.writeShortcuts([]);
   f.events.splice(0);
   await f.engine.call("installations.detect", {});
-  expect(await f.linked()).toEqual({ enabled: true, games: [], removed: [] });
+  expect(await f.linked()).toEqual({ enabled: true, playOwner: "wowdeck", games: [], removed: [] });
   const { settings } = await f.engine.call("settings.get", {});
   expect(settings.steamAddedGames).toEqual([]);
   expect(settings.steamRemovedGames).toEqual([]);
-  expect(f.events.at(-1)).toEqual({ enabled: true, games: [], removed: [] });
+  expect(f.events.at(-1)).toEqual({ enabled: true, playOwner: "wowdeck", games: [], removed: [] });
 });
 
 test("the startup scan forgets an added game deleted from Steam while WoWDeck wasn't running", async () => {

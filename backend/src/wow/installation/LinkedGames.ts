@@ -10,7 +10,7 @@
  * (`steamEnabled`) decides whether any of it counts; off keeps the list.
  */
 
-import type { FoundGames, LinkedGame, LinkedGames, SteamGameLink } from "../../api/contracts";
+import type { FoundGames, LinkedGame, LinkedGames, PlayOwner, SteamGameLink } from "../../api/contracts";
 import { ValidationError } from "../errors";
 import type { StateStore } from "../storage/StateStore";
 import { normalizeSteamGame } from "../storage/settings";
@@ -30,6 +30,8 @@ export class LinkedGameList {
      * known (a shortcuts file couldn't be read), so nothing is forgotten.
      */
     private readonly shortcutAppIds: () => Promise<ReadonlySet<number> | null>,
+    /** Who owns Play on this machine, decided at engine startup (PlayOwner). */
+    private readonly playOwner: PlayOwner,
   ) {
     store.settingsListeners.add(({ before, after }) => {
       if (
@@ -42,7 +44,7 @@ export class LinkedGameList {
     });
   }
 
-  /** The list, the removed games and the master switch (linkedGames.get). */
+  /** The list, the removed games, the master switch and who owns Play (linkedGames.get). */
   get(): LinkedGames {
     const games = new Map<number, LinkedGame>();
     const removed = new Set(this.store.settings.steamRemovedGames.map(({ appId }) => appId));
@@ -56,6 +58,7 @@ export class LinkedGameList {
       enabled: this.store.settings.steamEnabled,
       games: [...games.values()].sort((a, b) => a.appId - b.appId),
       removed: this.store.settings.steamRemovedGames,
+      playOwner: this.playOwner,
     };
   }
 

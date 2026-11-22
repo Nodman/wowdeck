@@ -74,6 +74,14 @@ test("a linked page offers Retry for a failed launch read", async () => {
   expect(retry()).toBeUndefined();
 });
 
+test("a linked page with no launch state (DroidDeck owns Play) shows no launch lines", async () => {
+  const { fake, addonSection, buttons } = await showSection();
+  await act(async () => fake.next("launch.state").resolve({ state: null }));
+  expect(addonSection().textContent).toContain("WoW addons");
+  expect(addonSection().textContent).not.toContain("launch");
+  expect(buttons()).toEqual(["Check for updates", "Open"]);
+});
+
 test("with Choose the WoW version from Play off, the section reads no launch state and shows no launch lines", async () => {
   const { fake, addonSection, buttons } = await showSection({ steamLaunchMenu: false });
   expect(fake.paramsOf("launch.state")).toEqual([]);

@@ -8,7 +8,7 @@ What's new in each version of WoWDeck Addon Manager. The format follows
 
 ### Added
 
-- Choose which WoW client Steam's Play button starts, including on NixOS. Turn it off in Options.
+- Pick the WoW client Play starts, even on NixOS; turn it off in Options. DroidDeck keeps Steam's own Play button.
 - Show in Steam, in Options › Steam library, turns WoWDeck on or off in Steam. Add, remove or find games there too.
 
 ### Fixed

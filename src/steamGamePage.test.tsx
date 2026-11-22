@@ -75,7 +75,7 @@ test("the section renders nothing until both the settings and the linked games h
   expect(section()).toBeNull();
   await settingsLoaded();
   expect(section()).toBeNull();
-  await linked({ enabled: true, games: [WOW], removed: [] });
+  await linked({ enabled: true, games: [WOW], removed: [], playOwner: "wowdeck" });
   expect(section()).not.toBeNull();
 });
 
@@ -85,6 +85,7 @@ test("shownLinkedGames: nothing until both have loaded, nothing while Show in St
     enabled,
     games: [WOW],
     removed: [],
+    playOwner: "wowdeck" as const,
     loaded,
     error: null,
   });
@@ -97,7 +98,7 @@ test("shownLinkedGames: nothing until both have loaded, nothing while Show in St
 
 test("the section follows linkedGames.changed: Show in Steam off hides it, other pages never get it", async () => {
   void linkedGamesStore.load();
-  await linked({ enabled: true, games: [WOW], removed: [] });
+  await linked({ enabled: true, games: [WOW], removed: [], playOwner: "wowdeck" });
   await settingsLoaded();
   await render(7);
   expect(section()).toBeNull();
@@ -106,8 +107,22 @@ test("the section follows linkedGames.changed: Show in Steam off hides it, other
   await act(async () =>
     fake.emit({
       event: "linkedGames.changed",
-      params: { enabled: false, games: [WOW], removed: [] },
+      params: { enabled: false, games: [WOW], removed: [], playOwner: "wowdeck" },
     }),
   );
   expect(section()).toBeNull();
+});
+
+test("the linked games say who owns Play, from linkedGames.get and linkedGames.changed", async () => {
+  linkedGamesStore.reset();
+  void linkedGamesStore.load();
+  await linked({ enabled: true, games: [WOW], removed: [], playOwner: "droiddeck" });
+  expect(linkedGamesStore.get().playOwner).toBe("droiddeck");
+  await act(async () =>
+    fake.emit({
+      event: "linkedGames.changed",
+      params: { enabled: false, games: [WOW], removed: [], playOwner: "wowdeck" },
+    }),
+  );
+  expect(linkedGamesStore.get().playOwner).toBe("wowdeck");
 });
