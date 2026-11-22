@@ -6,16 +6,18 @@ What's new in each version of WoWDeck Addon Manager. The format follows
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-22
+
 ### Added
 
-- Pick the WoW client Play starts, even on NixOS; turn it off in Options. DroidDeck keeps Steam's own Play button.
-- Show in Steam, in Options › Steam library, turns WoWDeck on or off in Steam. Add, remove or find games there too.
+- Pick the WoW client Play starts, including on NixOS. DroidDeck keeps Steam's own Play button.
+- Options › Steam library lets you show WoWDeck in Steam and add, remove or find linked games.
 
 ### Fixed
 
 - On SteamOS 3.9.6 with Decky 4, Get Addons widens again and the WoW Play button and controller glyphs show.
 - Get Addons can widen right after a WoWDeck update without reopening the Quick Access Menu.
-- Options now says when a setting couldn't be saved, and changing a setting twice in a row keeps your last choice.
+- Options reports failed saves. Changing a setting twice in a row keeps your last choice.
 - Check for updates in Options › Steam library keeps working with the tile badge turned off.
 - Sources no longer says a revoked TradeSkillMaster account stays signed in.
 
@@ -204,7 +206,8 @@ First release.
 - Back up and restore your WoW settings.
 - Import and export addon lists that WowUp understands.
 
-[Unreleased]: https://github.com/sigboe/wowdeck/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/sigboe/wowdeck/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/sigboe/wowdeck/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/sigboe/wowdeck/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/sigboe/wowdeck/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/sigboe/wowdeck/compare/v1.1.0...v1.1.1
