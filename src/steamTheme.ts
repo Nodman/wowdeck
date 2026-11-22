@@ -52,3 +52,7 @@ export const descriptionStyle = {
   fontSize: STEAM_FONT.small,
   lineHeight: "16px",
 } as const;
+
+/** Our Details card gradient, shared with text contrast measurement. */
+export const DETAILS_CARD_COLOURS = ["rgb(37, 40, 46)", "rgb(66, 69, 76)"] as const;
+export const DETAILS_CARD_GRADIENT = `radial-gradient(at left top in srgb, ${DETAILS_CARD_COLOURS[1]}, ${DETAILS_CARD_COLOURS[0]})`;

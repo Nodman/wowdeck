@@ -46,6 +46,16 @@ describe("renderMarkdownToSafeHtml", () => {
     expect(html).not.toContain("alert(");
   });
 
+  test("discards downloaded stylesheets as well as unsafe presentation declarations", () => {
+    const html = renderMarkdownToSafeHtml(
+      '<div><style>body { display:none }</style><span style="position:fixed;background-image:url(https://example.com/x);color:#333">Text</span></div>',
+    );
+    expect(html).not.toContain("<style");
+    expect(html).not.toContain("position");
+    expect(html).not.toContain("background-image");
+    expect(html).toContain("color: rgb(51, 51, 51)");
+  });
+
   test("strips an inline event-handler attribute", () => {
     const html = renderMarkdownToSafeHtml('<img src="x.png" onerror="alert(1)">');
     expect(html).not.toContain("onerror");
@@ -59,6 +69,38 @@ describe("renderMarkdownToSafeHtml", () => {
   test("plain text with no Markdown syntax still renders as a readable paragraph", () => {
     const html = renderMarkdownToSafeHtml("Just a plain description, no markdown here.");
     expect(html).toContain("Just a plain description, no markdown here.");
+  });
+
+  test("retains only foreground and background colour inputs without losing content", () => {
+    const html = renderMarkdownToSafeHtml(
+      '<table bgcolor="#fff"><tr><td style="background:#fff;opacity:.1">' +
+        '<font color="#333" face="Arial" size="1"><strong>Easy Setup</strong></font>' +
+        '<span style="color:#333!important;-webkit-text-fill-color:#333;font-size:8px">Options</span>' +
+        '<a style="color:#333" href="https://example.com">Help</a>' +
+        '<img src="https://example.com/logo.png" alt="Logo" width="191" height="31">' +
+        "</td></tr></table>",
+    );
+    const root = document.createElement("div");
+    root.innerHTML = html;
+    expect(root.querySelector("[color], [bgcolor], [face], [size]")).toBeNull();
+    expect((root.querySelector("table") as HTMLElement).style.backgroundColor).toBe(
+      "rgb(255, 255, 255)",
+    );
+    expect((root.querySelector("span") as HTMLElement).style.color).toBe("rgb(51, 51, 51)");
+    for (const element of root.querySelectorAll<HTMLElement>("[style]")) {
+      for (let i = 0; i < element.style.length; i++) {
+        expect(["color", "background-color"]).toContain(element.style.item(i));
+      }
+    }
+    expect(html).not.toContain("opacity");
+    expect(html).not.toContain("text-fill-color");
+    expect(html).not.toContain("font-size");
+    expect(root.querySelector("strong")?.textContent).toBe("Easy Setup");
+    expect(root.textContent).toContain("Options");
+    expect(root.querySelector("a")?.getAttribute("href")).toBe("https://example.com");
+    expect(root.querySelector("img")?.getAttribute("src")).toBe("https://example.com/logo.png");
+    expect(root.querySelector("img")?.getAttribute("alt")).toBe("Logo");
+    expect(root.querySelector("table")).not.toBeNull();
   });
 
   test("empty input renders to empty output without throwing", () => {

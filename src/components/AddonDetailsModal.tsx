@@ -25,7 +25,13 @@ import {
   type Relationships,
 } from "../relationships";
 import { wowdeckSharedStyleCss } from "../sharedStyles";
-import { STEAM, STEAM_FONT, descriptionStyle } from "../steamTheme";
+import {
+  STEAM,
+  STEAM_FONT,
+  descriptionStyle,
+  DETAILS_CARD_COLOURS,
+  DETAILS_CARD_GRADIENT,
+} from "../steamTheme";
 import {
   nextSelectableId,
   registerDirectionalNav,
@@ -83,8 +89,8 @@ const DETAILS_STAGE_CSS = `
 }
 .wowdeck-details-card {
   max-width: 640px; margin: 0 auto 40px; overflow: hidden; position: relative;
-  background-color: rgb(37, 40, 46);
-  background-image: radial-gradient(at left top, rgb(66, 69, 76), rgb(37, 40, 46));
+  background-color: ${DETAILS_CARD_COLOURS[0]};
+  background-image: ${DETAILS_CARD_GRADIENT};
 }
 .wowdeck-details-card.on { outline: 2px solid rgba(255, 255, 255, 0.6); outline-offset: 2px; }
 .wowdeck-details-header {

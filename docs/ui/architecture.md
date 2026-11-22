@@ -22,6 +22,7 @@ Rules P1–P9: frontend layout, conventions, the session model, global input and
 | `src/index.tsx` | `definePlugin`; `Content()`; tab state; global LB/RB registration; update toast |
 | `src/components/*` | Screens and shared components ([§5](components.md#5-shared-components-and-styling-project)) |
 | `src/steamTheme.ts` | Steam's colour and type tokens (S20) |
+| `src/textContrast.ts` | SafeMarkdown's local text-contrast measurement, colour correction and observer cleanup; outcomes tested through rendered content |
 | `src/toast.tsx` | `pluginToast`: every toast, with the plugin icon (S17) |
 | `src/addonRow.ts` | Pure text, context-menu and Details action rules for My Addons rows (unit-tested) |
 | `src/loadMore.ts` | Pure load-more paging for Get Addons lists (unit-tested) |
