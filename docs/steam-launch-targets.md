@@ -66,6 +66,46 @@ starting replay. It keeps direct replay when the user namespace is shared.
 Missing runtime tools and namespace-entry failures produce a request-delivery
 error, rather than a notice that Battle.net did not start the client.
 
+## DroidDeck
+
+On DroidDeck, WoWDeck leaves Play to DroidDeck. DroidDeck adds one Steam
+game per WoW version, and each game's launch options carry
+`--exec="launch <code>"`. When Steam starts one, DroidDeck's Proton wrapper
+hands the start to its store launcher, `droiddeck-store-launch`. The store
+launcher matches Battle.net in prefix `2596113170` and runs DroidDeck's
+Battle.net driver as `droiddeck-battlenet launch <code>`. The driver waits
+until Battle.net is ready, then asks it for that game's version up to
+three times, 15 seconds apart. It closes Battle.net 20 seconds after the
+game is up. Nothing outside DroidDeck can stop or delay that ask, so a
+WoWDeck pick of another version would race it.
+
+The engine looks for `/usr/local/bin/droiddeck-store-launch` once at
+startup. DroidDeck counts as present only when that file exists and is
+executable. While it is present:
+
+- Every linked game's page keeps Steam's own Play button and "Play from…"
+  menu. The WoW addons section stays and has no launch lines.
+- Options › Steam library shows **Play starts WoW** greyed out, with
+  "Not available on DroidDeck. DroidDeck launches game directly" under it.
+- `launch.state` and `launch.icon` answer null for every app id.
+  `launch.start` starts nothing and never asks Battle.net.
+- `launch.select` is refused with the error code `play_left_to_droiddeck`.
+- `linkedGames.get` and `linkedGames.changed` carry `playOwner:
+  "droiddeck"`. Elsewhere they carry `"wowdeck"`.
+
+The check covers the whole machine. It doesn't look at single shortcuts,
+so a Battle.net shortcut made by hand on DroidDeck gets Steam's Play too.
+**Play starts WoW** and each shortcut's saved launch target stay as they
+are. WoWDeck doesn't rewrite or clear them, so settings moved to a Steam
+Deck work there as before.
+
+To open Battle.net without starting a game, use DroidDeck's Battle.net
+tile on its Desktop tab. DroidDeck's own code is the evidence: its
+Battle.net runtime, `steam-compatibility` wrapper, `droiddeck-store-launch`
+and `droiddeck-battlenet` on the `main` branch of Droid-Deck/DroidDeck, read
+2026-11-21. [ADR 0016](adr/0016-patch-steams-play-button.md) has the
+decision.
+
 ## Battle.net commands
 
 Battle.net starts a game with `--exec="launch <code>"`. WoW has three codes:
@@ -121,7 +161,8 @@ The [launch delivery spike](hardware/2026-11-18-steam-launch-delivery/README.md)
 and [started-entry run](hardware/2026-11-18-steam-started-entry/README.md)
 record the earlier Forever results on Steam Deck. Those builds preceded
 the picker. Verify Retail and the picker on device before release. The
-combined DroidDeck run follows integration of #282 and #283.
+steps below don't apply on DroidDeck, where WoWDeck leaves Play to
+DroidDeck. The DroidDeck device check for #296 is regression case L-29.
 
 | Step | Expected |
 | --- | --- |
