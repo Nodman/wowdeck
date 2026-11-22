@@ -1,17 +1,19 @@
 /**
  * Depends on: the Quick Access Menu renderers (`QuickAccessMenuBrowserView`,
  * `QuickAccessMenuEmbedded`, found by their names the way Decky's TabsHook
- * finds them) and the QAM CSS module (`ViewPlaceholder`, `Expanded`, found by
- * its readable keys).
+ * finds them: exported on the webpack Steam client, in module scope on the
+ * Vite one) and the QAM CSS module (`ViewPlaceholder`, `Expanded`: found by
+ * its readable keys on webpack, from Decky 4's `quickAccessMenuClasses` on
+ * Vite). Both lookups: `steamLookup.ts`.
  * Fails as: either missing -> `init` false, `live` stays false and Get Addons
  * keeps its collapsed layout (qamWidening), one console warning. Never throws.
  * Kill switch: the automatic fallback above; there is no user setting.
  */
 
 import { cloneElement, useLayoutEffect, useSyncExternalStore, type ReactElement } from "react";
-import { afterPatch, findClassModule, findModuleByExport, getReactRoot } from "@decky/ui";
+import { afterPatch, getReactRoot } from "@decky/ui";
+import { steamLookup } from "../steamLookup";
 import {
-  isQamViewClasses,
   sharedQamExpandState,
   type QamExpandState,
   withExpanded,
@@ -48,10 +50,13 @@ export class QamExpandHook {
   /** Patch the QAM renderers. True when the mechanism was found. */
   init(): boolean {
     try {
-      const classes = findClassModule(isQamViewClasses) as QamViewClasses | undefined;
-      const qamModule = findModuleByExport((e: unknown) => isRenderer(e, BROWSER_VIEW));
+      const classes: QamViewClasses | undefined = steamLookup.findClasses(
+        QAM_CLASS_KEYS,
+        "quickAccessMenuClasses",
+      );
+      const qamModule = steamLookup.findModuleWith((e: unknown) => isRenderer(e, BROWSER_VIEW));
       const renderers = qamModule
-        ? Object.values(qamModule as Record<string, unknown>).filter(
+        ? Object.values(qamModule).filter(
             (e): e is Renderer => isRenderer(e, BROWSER_VIEW) || isRenderer(e, EMBEDDED),
           )
         : [];
@@ -152,6 +157,7 @@ interface Fiber {
 }
 
 const BROWSER_VIEW = "QuickAccessMenuBrowserView";
+const QAM_CLASS_KEYS = ["ViewPlaceholder", "Expanded"] as const;
 const EMBEDDED = "QuickAccessMenuEmbedded";
 
 function isRenderer(e: unknown, name: string): e is Renderer {

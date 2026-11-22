@@ -181,14 +181,14 @@ Steam's plain Play button and its own menu, which keep working.
 
 | Property | What WoWDeck uses it for | Evidence | When it is missing |
 | --- | --- | --- | --- |
-| Wrapper export: a `forwardRef` whose render source contains `navigator:` and `instance:` (`isPlayButtonWrapper`, `src/steamLaunchPatch.tsx`) | Finds the exported component that renders Steam's private Play button class | INFERRED | No patch. One warning ("no Play button wrapper"), and Steam's button |
+| Wrapper: a `forwardRef` whose render source contains `navigator:` and `instance:` (`isPlayButtonWrapper`, `src/steamLaunchPatch.tsx`), exported on the webpack client, in module scope on the Vite client (§8.4f) | Finds the component that renders Steam's private Play button class | INFERRED on webpack. LIVE on Vite (2026-11-22: found by `findVar`, not by `findModuleExport`) | No patch. One warning ("no Play button wrapper"), and Steam's button |
 | `ShowStreamingMenu`, `GetTextForRemoteClientAction` and `render` on the class prototype (`isPlayButtonClass`) | Tells the Play button class from anything else the wrapper returns | INFERRED | The wrapper's element passes through unpatched, without a warning, and Steam's button stays |
 | mobx-react v9's class `render` installer: on first render it defines the instance's own `render` with `writable: false, configurable: false` (`hookObserverRender`, `src/observerRender.ts`) | WoWDeck replaces the prototype's render and wraps the instance's render as mobx defines it; an instance rendered earlier remounts through a new key on the wrapper's element | LIVE (2026-11-18: assigning to a mounted instance's `render` did nothing) | That button stays Steam's plain Play. A hook that throws logs one warning ("render not patchable") |
 | A component above the Play button re-renders Steam's wrapper, and React remounts the button when the wrapper's element gains or loses WoWDeck's key (`remountPlayButton`, `src/steamLaunchPatch.tsx`) | Applies Options' "Choose the WoW version from Play" (#286) to an open game page: on remounts Play through the patch, off disposes the patch and remounts Steam's own | LIVE for the keyed remount on plugin load (2026-11-18). INFERRED for the unkeyed remount after disposal until the L-27 run | One warning ("no component above the Play button to remount it"). Turned on, Play stays Steam's until the page reopens. Turned off, the patched button stops reading launch state and draws Steam's tree on its next render |
 | `overview.appid` on the instance's props | Decides whether the page is a linked WoW entry | INFERRED | The button stays Steam's |
 | `overview.BIsSelectedClientLocal()` | Tells a stream target from this Deck: Steam's labels while streaming, and the checkmark on our row only while local | INFERRED | WoWDeck treats this Deck as selected, so its label replaces Steam's Stream label even with a stream target |
 | `ShowStreamingMenu(event)` on the instance (`openMenu`) | Opens Steam's own "Play from…" menu, anchored to Play | INFERRED | One warning ("no Play from menu"). The chevron does nothing, Play still works |
-| The jsx runtime module (exports `jsx`, `jsxs`, `Fragment`), called as `module.jsx(...)` at call time (`openMenu`) | For the one synchronous `ShowStreamingMenu` call, WoWDeck swaps `jsx` so Steam's menu element comes back wrapped in `WowPlayMenu` | INFERRED | If the module is missing or Steam binds `jsx` at import, Steam's unchanged menu opens and one warning says so |
+| The jsx runtime module (exports `jsx`, `jsxs`, `Fragment`), called as `module.jsx(...)` at call time (`openMenu`) | For the one synchronous `ShowStreamingMenu` call, WoWDeck swaps `jsx` so Steam's menu element comes back wrapped in `WowPlayMenu` | INFERRED. On Vite (2026-11-22) one such module exists, its `jsx` is writable, and the wrapper calls `(0,Y.jsx)(…)`; the swap itself is still untested there | If the module is missing or Steam binds `jsx` at import, Steam's unchanged menu opens and one warning says so |
 | `onStreamingTargetSelected` prop on the menu element (`openMenu`) | Marks the one element the swapped `jsx` wraps | INFERRED | Same as the jsx runtime: Steam's unchanged menu and one warning |
 | `isLocalClient` and `client.clientid` props on each menu row (`replaceLocalPlayRow`, `src/steamPlayButton.ts`) | Finds "Play on this Steam Deck" to replace, and the local client id WoWDeck sets when a row is picked | INFERRED | One warning ("unexpected Play from menu"), and Steam's menu |
 | `showThrobber` and `text` props on Play's label (`isLabel`) | Finds the label whose `remoteText` carries the short name | INFERRED | One warning ("unexpected Play button"), and Steam's button |
@@ -196,8 +196,36 @@ Steam's plain Play button and its own menu, which keep working.
 | `overview` prop, no `onDismiss`, and an `onClick` or `onMouseUp` handler on the chevron (`isSelector`) | Finds Steam's chevron so WoWDeck can route it to its menu | INFERRED | WoWDeck adds its own chevron. If Steam's chevron is there but unrecognised, the row could show two |
 | `onDismiss` on the Remote Play explainer (`isExplainer`) | Places WoWDeck's chevron before the explainer, where Steam puts its own | INFERRED | WoWDeck's chevron goes last in the row |
 | `onMouseUp` or `onClick` on Play and the chevron (`handlerProps`) | Steam sets one or the other per build. WoWDeck replaces whichever Steam set | INFERRED | With neither, WoWDeck sets `onClick` |
-| CSS module keys in `CLASS_KEYS` (`src/components/WowPlayButton.tsx`): `PlayButtonContainer`, `PlayButton`, `ButtonChild`, `HasRemoteText`, `ShowingStreaming`, `ButtonText`, `ButtonRemoteText`, `StreamingSelector`, `StreamingContextMenuItem`, `CheckContainer`, `StreamingTargetLabel` | Finds the tree, styles Play like Steam's Stream button and styles our menu rows like Steam's | LIVE (2026-11-18: our button and menu rows carry the same classes and computed styles as Steam's Stream button and "Play from" rows) | `steamPlayClasses()` returns null. The button stays Steam's, without a warning |
+| CSS module keys in `CLASS_KEYS` (`src/components/WowPlayButton.tsx`): `PlayButtonContainer`, `PlayButton`, `ButtonChild`, `HasRemoteText`, `ShowingStreaming`, `ButtonText`, `ButtonRemoteText`, `StreamingSelector`, `StreamingContextMenuItem`, `StreamingTargetLabel`, and optional `CheckContainer` | Finds the tree, styles Play like Steam's Stream button and styles our menu rows like Steam's. On the Vite client the keys are obfuscated, so the classes come from Decky 4's `appActionButtonClasses` (§8.4f) | LIVE (2026-11-18: our button and menu rows carry the same classes and computed styles as Steam's Stream button and "Play from" rows). On Vite (2026-11-22) Decky's table maps every key but `CheckContainer` | A required key missing: `steamPlayClasses()` returns null and the button stays Steam's, without a warning. `CheckContainer` missing: the menu check loses its box class |
 | `.PlayButton svg` rule: 24 × 24 px with 16 px before the label (`TargetIcon`, `src/components/WowPlayButton.tsx`) | Sizes and spaces the target's icon like Steam's play and stream glyphs, so the icon is an `<svg>` wrapping an `<image>` | LIVE (2026-11-18, computed style on the Vampire Survivors Stream button) | An `<img>` gets no gap before the label |
 | Steam's check component, source names `SVGIcon_DialogCheck` and `highlightColor` (`SteamMenuCheck`, `src/steamIcons.tsx`) | Marks the selected menu row with Steam's blue gradient check | LIVE (2026-11-18, exported, used by the "Play from" menu) | A plain check (`FaCheck`) |
 | Steam's arrow component, prop `direction`, down path `M17.98 26.54` (`SteamChevronDown`, `src/steamIcons.tsx`) | Draws our chevron as Steam's filled triangle | LIVE (2026-11-18, exported, the same SVG as Steam's own chevron) | A thin chevron (`FaChevronDown`) |
 | `SteamClient.Apps.SetStreamingClientForApp(appId, clientId)` (`setSteamStreamingClient`, `src/steamLaunchActions.ts`) | Points Steam's Play back at this Deck when a WoW row is picked | Steam's own rows calling it is LIVE. WoWDeck's call is INFERRED | Play keeps Steam's selected client. WoWDeck logs a warning if the call throws |
+
+## 8.4f Two Steam clients: webpack and Vite (2026-11-22)
+
+Steam's beta client (CLSTAMP 11255874 on the owner's Deck) is built with
+Vite instead of webpack. It needs Decky 4 (4.0.0-pre1). Stable Steam keeps
+the webpack client and Decky 3. WoWDeck supports both through
+`src/steamLookup.ts`: each lookup asks the webpack-era way first, then the
+Decky 4 way. Read on the Deck over CDP that day (LIVE), these changed:
+
+- Components and renderers Steam used to export now often live in module
+  scope only. `findModuleExport` and `findModuleByExport` miss them, and
+  Decky 4's `findVar` and `findModuleScopeByVar` find them. This hit the
+  Quick Access Menu renderers (the wide-QAM slide), the Play button
+  wrapper, and the controller glyph module (`findScope`).
+- CSS module keys are obfuscated, so `findClassModule` by readable keys
+  finds nothing. Decky 4 maps class names per Steam build into its named
+  tables. `quickAccessMenuClasses` has `ViewPlaceholder`, `Expanded` and
+  `QuickAccessMenuEmbeddedContainer`. `appActionButtonClasses` has the
+  Play button keys except `CheckContainer`. An unmapped key reads `""`.
+- Still found the old way: Steam's check and arrow icons, the controller
+  button enum, the jsx runtime, `appDetailsClasses.InnerContainer`, the
+  game page's `renderFunc` and `overview`, and the Play button class's
+  method names.
+
+When a lookup finds nothing on either client, its feature falls back as
+its row in §8.4e or its source file's header describes. Decky's tables
+follow Steam builds, so a Steam update can blank a class until Decky ships
+a new table. Once Decky 3 is gone, delete the webpack half of each lookup.

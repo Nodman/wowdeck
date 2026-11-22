@@ -1,5 +1,5 @@
 import { Component, createElement, type ComponentType, type ReactNode } from "react";
-import { findModule, findModuleExport } from "@decky/ui";
+import { steamLookup } from "./steamLookup";
 
 /**
  * Steam's own controller glyph (guide S15): the component Steam's tab bars
@@ -7,8 +7,9 @@ import { findModule, findModuleExport } from "@decky/ui";
  * L1/R1, Steam Deck L1/R1, Switch, 8BitDo), which hard-coded text cannot.
  *
  * Neither the component nor its button enum is exported by @decky/ui, so both
- * are found in Steam's webpack modules (read from the installed client,
- * 2026-10-13 build):
+ * are found in Steam's modules (steamLookup.ts; read from the installed
+ * client, 2026-10-13 build; on the Vite client the glyph's module is a module
+ * scope, LIVE 2026-11-22):
  * - the module that exports the glyph also exports a settings hook whose source
  *   names "GamepadUI_KeyboardNavGlyphsDisabled";
  * - its two component exports are the glyph ({button}) and the footer legend
@@ -36,9 +37,9 @@ function steamGlyphParts() {
   let components: unknown[] = [];
   let buttons: Record<GlyphButton, number> | null = null;
   try {
-    const mod = findModule(isGlyphModule) as Record<string, unknown> | undefined;
+    const mod = steamLookup.findModule(isGlyphModule);
     components = mod ? componentExports(mod) : [];
-    buttons = (findModuleExport(isSteamButtonEnum) as Record<GlyphButton, number>) ?? null;
+    buttons = (steamLookup.findExport(isSteamButtonEnum) as Record<GlyphButton, number>) ?? null;
   } catch {
     // fall back to text
   }

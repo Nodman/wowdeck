@@ -1,10 +1,4 @@
-import {
-  afterPatch,
-  appDetailsClasses,
-  findModule,
-  findModuleExport,
-  getReactInstance,
-} from "@decky/ui";
+import { afterPatch, appDetailsClasses, getReactInstance } from "@decky/ui";
 import { cloneElement, isValidElement, type ReactElement } from "react";
 import {
   isLinkedApp,
@@ -18,12 +12,14 @@ import { hookObserverRender, type ObserverRenderHook } from "./observerRender";
 import { steamEntryRunning } from "./steamLaunchActions";
 import { settingsStore, steamLaunchMenuOn } from "./settings";
 import { steamEvent } from "./steamPlayButton";
+import { steamLookup } from "./steamLookup";
 
 /**
  * WoWDeck's client choice on Steam's own Play button (ADR 0016, #285).
  *
  * Steam renders Play, its chevron and its "Play from…" menu in one private
- * class component. It isn't exported, but an exported forwardRef wrapper
+ * class component. It isn't exported, but a forwardRef wrapper (exported on
+ * the webpack Steam client, in module scope on the Vite one; steamLookup.ts)
  * renders it (it adds `navigator` and `instance` props), so the patch finds
  * the class in the wrapper's render output. Steam's class is a mobx
  * observer, which locks each instance's `render` on its first render
@@ -138,17 +134,15 @@ export function createSteamLaunchPatch() {
         ? overview.BIsSelectedClientLocal()
         : true;
 
-    let runtime: JsxRuntime | undefined;
-    try {
-      runtime = findModule(
-        (module: Partial<JsxRuntime> & { jsxs?: unknown; Fragment?: unknown }) =>
-          typeof module?.jsx === "function" &&
-          typeof module.jsxs === "function" &&
-          module.Fragment !== undefined,
-      ) as JsxRuntime | undefined;
-    } catch {
-      runtime = undefined;
-    }
+    const runtime = steamLookup.findModule((candidate: unknown) => {
+      const module = candidate as
+        (Partial<JsxRuntime> & { jsxs?: unknown; Fragment?: unknown }) | null;
+      return (
+        typeof module?.jsx === "function" &&
+        typeof module.jsxs === "function" &&
+        module.Fragment !== undefined
+      );
+    }) as JsxRuntime | undefined;
     const real = runtime?.jsx;
     let swapped = false;
     // Steam builds the menu element with the jsx runtime and shows it at
@@ -234,7 +228,7 @@ export function createSteamLaunchPatch() {
 
   function install() {
     try {
-      const wrapper = findModuleExport(isPlayButtonWrapper) as
+      const wrapper = steamLookup.findExport(isPlayButtonWrapper) as
         { render: () => unknown } | undefined;
       if (!wrapper) return warnPlayButton("no Play button wrapper");
       const patch = afterPatch(wrapper, "render", (_args: unknown[], element: unknown) => {
