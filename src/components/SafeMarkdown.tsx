@@ -1,3 +1,5 @@
+import { useLayoutEffect, useRef } from "react";
+import { watchTextContrast } from "../textContrast";
 import { Navigation } from "@decky/ui";
 import { renderMarkdownToSafeHtml } from "../markdown";
 
@@ -16,8 +18,15 @@ export function SafeMarkdown({
   breaks?: boolean;
   onLink?: (url: string) => void;
 }) {
+  const root = useRef<HTMLDivElement>(null);
+  const html = renderMarkdownToSafeHtml(markdown, { breaks });
+  useLayoutEffect(() => {
+    if (root.current) return watchTextContrast(root.current);
+    return undefined;
+  }, [html]);
   return (
     <div
+      ref={root}
       className="wowdeck-markdown"
       onClick={(e) => {
         const anchor = (e.target as HTMLElement).closest("a");
@@ -26,7 +35,7 @@ export function SafeMarkdown({
           onLink(anchor.href);
         }
       }}
-      dangerouslySetInnerHTML={{ __html: renderMarkdownToSafeHtml(markdown, { breaks }) }}
+      dangerouslySetInnerHTML={{ __html: html }}
     />
   );
 }

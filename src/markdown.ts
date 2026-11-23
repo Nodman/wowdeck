@@ -120,10 +120,22 @@ export function canonicalYouTubeEmbedUrl(src: string | null | undefined): string
 
 if (DOMPurify.isSupported) {
   DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+    const element = node as Element;
     if (node.nodeName !== "IFRAME") {
+      // Only retain colour inputs. Parsing through CSSOM rejects invalid
+      // declarations, and rebuilding excludes URLs, positioning, opacity,
+      // text fill and other presentation that could defeat measured colours.
+      const original = document.createElement("span").style;
+      original.cssText = element.getAttribute("style") ?? "";
+      const safe = document.createElement("span").style;
+      safe.color = original.color || element.getAttribute("color") || "";
+      safe.backgroundColor = original.backgroundColor || element.getAttribute("bgcolor") || "";
+      element.removeAttribute("style");
+      element.removeAttribute("color");
+      element.removeAttribute("bgcolor");
+      if (safe.cssText) element.setAttribute("style", safe.cssText);
       return;
     }
-    const element = node as Element;
     const canonical = canonicalYouTubeEmbedUrl(element.getAttribute("src"));
     if (!canonical) {
       element.parentNode?.removeChild(element);
@@ -152,6 +164,8 @@ export function renderMarkdownToSafeHtml(
   return DOMPurify.sanitize(html, {
     ADD_TAGS: ["iframe"],
     ADD_ATTR: ["allow", "allowfullscreen", "referrerpolicy"],
+    FORBID_ATTR: ["face", "size"],
+    FORBID_TAGS: ["style"],
     // Images and links are the only "live" content a README/changelog
     // legitimately needs; scripts, forms, and event-handler attributes
     // are never allowed regardless of what DOMPurify's own defaults do.
