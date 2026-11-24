@@ -143,7 +143,8 @@ const TOC = text("## Title: Foo\n## Version: 1\n");
 describe("streaming zip extraction", () => {
   test("large deflated and stored entries come out byte for byte", async () => {
     // Above 320 kB compressed: the size from which fflate's whole-archive unzip starts a worker per entry.
-    const texture = halfCompressible(1_500_000, 1);
+    // The texture is above 1 MiB compressed and streams; the table and the toc inflate in one step.
+    const texture = halfCompressible(3_000_000, 1);
     const table = text("Data[1] = { name = 'entry', value = 1 }\n".repeat(60_000));
     const sound = halfCompressible(700_000, 2);
     const { zipPath, dest } = fixture(
@@ -225,30 +226,45 @@ describe("streaming zip extraction", () => {
     expect(readFileSync(join(dest, "Foo/Foo.toc")).equals(TOC)).toBe(true);
   });
 
-  test("an entry that inflates past its declared size is damaged, and stops there", async () => {
+  test("a small entry that inflates past its declared size is damaged, and is not written", async () => {
     const bomb = text("a".repeat(5_000_000));
     const { zipPath, dest } = fixture(
       "larger-than-declared",
       rawZip([{ name: "Foo/Foo.toc", content: TOC }, { name: "Foo/bomb.lua", content: bomb, declaredSize: 100 }]),
     );
     await expect(extractArchive(zipPath, dest)).rejects.toThrow(/damaged/);
-    expect(readFileSync(join(dest, "Foo/bomb.lua")).length).toBeLessThanOrEqual(100);
+    expect(existsSync(join(dest, "Foo/bomb.lua"))).toBe(false);
   });
+
+  test("a large entry that inflates past its declared size is damaged, and stops there", async () => {
+    // More than 1 MiB compressed, so it streams.
+    const { zipPath, dest } = fixture(
+      "larger-than-declared-streamed",
+      rawZip([
+        { name: "Foo/Foo.toc", content: TOC },
+        { name: "Foo/bomb.blp", content: halfCompressible(3_000_000, 5), declaredSize: 100 },
+      ]),
+    );
+    await expect(extractArchive(zipPath, dest)).rejects.toThrow(/damaged/);
+    expect(readFileSync(join(dest, "Foo/bomb.blp")).length).toBeLessThanOrEqual(100);
+  });
+
+  for (const [size, how] of [[50_000, "small"], [3_000_000, "large"]] as const) {
+    test(`a ${how} entry whose data does not inflate is damaged`, async () => {
+      const bytes = rawZip([{ name: "Foo/Foo.toc", content: TOC }, { name: "Foo/Foo.lua", content: halfCompressible(size, 3) }]);
+      // Overwrite the middle of the second entry's deflate stream.
+      const at = bytes.indexOf("Foo/Foo.lua") + "Foo/Foo.lua".length + 100;
+      bytes.fill(0x07, at, at + 2000); // block type 3 is reserved
+      const { zipPath, dest } = fixture(`garbled-${how}`, bytes);
+      await expect(extractArchive(zipPath, dest)).rejects.toThrow(/damaged/);
+    });
+  }
 
   test("an entry shorter than declared is damaged", async () => {
     const { zipPath, dest } = fixture(
       "smaller-than-declared",
       rawZip([{ name: "Foo/Foo.toc", content: TOC, declaredSize: TOC.length + 1 }]),
     );
-    await expect(extractArchive(zipPath, dest)).rejects.toThrow(/damaged/);
-  });
-
-  test("entry data that does not inflate is damaged", async () => {
-    const bytes = rawZip([{ name: "Foo/Foo.toc", content: TOC }, { name: "Foo/Foo.lua", content: halfCompressible(50_000, 3) }]);
-    // Overwrite the middle of the second entry's deflate stream.
-    const at = bytes.indexOf("Foo/Foo.lua") + "Foo/Foo.lua".length + 100;
-    bytes.fill(0x07, at, at + 2000); // block type 3 is reserved
-    const { zipPath, dest } = fixture("garbled", bytes);
     await expect(extractArchive(zipPath, dest)).rejects.toThrow(/damaged/);
   });
 

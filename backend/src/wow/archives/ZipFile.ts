@@ -16,8 +16,8 @@
  * the data) and zip64 archives both read correctly.
  */
 
-import { Inflate, strFromU8 } from "fflate";
-import { closeSync, openSync, writeSync } from "node:fs";
+import { Inflate, inflateSync, strFromU8 } from "fflate";
+import { closeSync, openSync, readSync, writeSync } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
 
 const EOCD_SIG = 0x06054b50;
@@ -35,6 +35,13 @@ const METHOD_DEFLATE = 8;
  * so one step inflates to 66 MiB in the worst case and far less in practice.
  */
 const READ_CHUNK = 64 * 1024;
+/**
+ * An entry no larger than this, compressed and inflated, is read and
+ * inflated in one step: most addon files are small, and a stream per file
+ * costs more than the file. Larger entries stream.
+ */
+const ONE_STEP_COMPRESSED = 1024 * 1024;
+const ONE_STEP_INFLATED = 8 * 1024 * 1024;
 
 /** The archive is not a zip this reader can unpack; the message says why (for the log). */
 export class ZipFormatError extends Error {
@@ -196,11 +203,37 @@ export async function writeZipEntry(fh: FileHandle, entry: ZipEntry, destination
   if (entry.method !== METHOD_STORED && entry.method !== METHOD_DEFLATE) {
     bad(`unknown compression type ${entry.method}`);
   }
-  const header = await readExactly(fh, 30, entry.localHeaderOffset);
-  if (header.readUInt32LE(0) !== LFH_SIG) {
+  // Thirty bytes from the page cache: not worth a trip through the event loop per entry.
+  const header = Buffer.alloc(30);
+  if (readSync(fh.fd, header, 0, 30, entry.localHeaderOffset) !== 30 || header.readUInt32LE(0) !== LFH_SIG) {
     bad("an entry's local header is missing");
   }
   const dataStart = entry.localHeaderOffset + 30 + header.readUInt16LE(26) + header.readUInt16LE(28);
+
+  if (
+    entry.method === METHOD_DEFLATE &&
+    entry.compressedSize <= ONE_STEP_COMPRESSED &&
+    entry.uncompressedSize <= ONE_STEP_INFLATED
+  ) {
+    const compressed = await readExactly(fh, entry.compressedSize, dataStart);
+    let content: Uint8Array;
+    try {
+      // fflate stops at the end of `out` without an error: the spare byte shows an entry larger than declared.
+      content = inflateSync(compressed, { out: new Uint8Array(entry.uncompressedSize + 1) });
+    } catch (err) {
+      bad(`an entry does not inflate: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    if (content.length !== entry.uncompressedSize) {
+      bad(content.length > entry.uncompressedSize ? "an entry is larger than declared" : "an entry is smaller than declared");
+    }
+    const fd = openSync(destinationPath, "w");
+    try {
+      writeAll(fd, content);
+    } finally {
+      closeSync(fd);
+    }
+    return;
+  }
 
   const fd = openSync(destinationPath, "w");
   try {
