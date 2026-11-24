@@ -77,10 +77,20 @@ _Avoid_: dev build, dev copy
 
 **TradeSkillMaster destination**:
 The destination listed after Manual Install, present only while the
-TradeSkillMaster source is on, whether usable or signed out. It installs
-the addon for the active installation and shows the state of its auction
-data; while signed out it offers the way back to signing in instead.
+TradeSkillMaster source is on, whether usable or signed out. It has two
+views: Auction data, which installs the addon for the active installation
+and shows the state of its auction data (while signed out it offers the way
+back to signing in instead), and the Ledger.
 _Avoid_: TSM page, TSM tab
+
+**Ledger**:
+The TradeSkillMaster destination's view of the gold the player's characters
+made and spent: what they sold and bought, their gold over time, and an
+export of the records behind it. It reads what the TradeSkillMaster addon
+recorded in the game's saved settings for one WoW account of the active
+installation, so it needs no TradeSkillMaster sign-in and works signed out.
+It is only as fresh as the last logout or reload.
+_Avoid_: Accounting, accounting dashboard
 
 **Auction data**:
 The price data TradeSkillMaster publishes per auction house and per region,

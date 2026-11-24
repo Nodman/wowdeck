@@ -20,13 +20,16 @@ unclear, write to `.scratch/` and offer to publish.
 ## When a skill says "publish to the issue tracker"
 
 - `/to-spec`, `/to-tickets`, `/triage`, or the owner says "issue" or
-  "GitHub": create a GitHub issue (see **GitHub**).
+  "GitHub": create a GitHub issue (see **GitHub**). A spec whose body names a
+  GitHub Project takes its tickets as draft items instead (see
+  **Project-backed specs**).
 - `/wayfinder`, `/research`, or the owner says "scratch" or "draft": write a
   file under `.scratch/<feature-slug>/` (see **Scratch**).
 
 ## When a skill says "fetch the relevant ticket"
 
-A `#n` or GitHub URL is a GitHub issue; a path is a scratch file.
+A `#n` or GitHub URL is a GitHub issue; a path is a scratch file; a ticket
+title under a Project-backed spec is a draft item in that spec's Project.
 
 ## GitHub
 
@@ -45,6 +48,38 @@ Use the `gh` CLI; it infers the repo from `git remote -v`.
 
 **PRs as a request surface: no.** _(Set to `yes` if this repo treats external
 PRs as feature requests; `/triage` reads this flag.)_
+
+## Project-backed specs
+
+When the owner asks for a spec "as a project", its tickets wait as draft
+items in a GitHub Project (Projects v2, owner `sigboe`) and become issues
+one at a time, when work starts. Issues then holds the spec and the tickets
+in progress or done. The `gh` token needs the `project` scope.
+
+- **Project**: `gh project create --owner sigboe --title "<name>"`, then
+  `gh project link <number> --owner sigboe --repo sigboe/wowdeck`, then a
+  `Phase` field: `gh project field-create <number> --owner sigboe --name Phase
+  --data-type SINGLE_SELECT --single-select-options "Phase 1,Phase 2"`.
+  Status is the Project's built-in field.
+- **Spec**: an ordinary spec issue (`/to-spec`, `ready-for-agent`), added with
+  `gh project item-add <number> --owner sigboe --url <issue-url>`. Its body
+  names the Project's URL.
+- **Tickets** (`/to-tickets`): `gh project item-create <number> --owner sigboe
+  --title "..." --body "..."`, each a full ticket body. The body opens with
+  `Part of #<spec>` and a `Blocked by: <draft title>, <draft title>` line,
+  since draft items have no dependencies. Set each item's Phase with
+  `gh project item-edit`.
+- **Frontier**: draft items whose blockers are all closed issues. Lowest
+  Phase first, then Project order.
+- **Picking one up** (`/implement`, before any work): convert the draft with
+  the GraphQL mutation `convertProjectV2DraftIssueItemToIssue(input: {itemId,
+  repositoryId})`. The item id comes from `gh project item-list <number>
+  --owner sigboe --format json`, the repository id from `gh api
+  repos/sigboe/wowdeck --jq .node_id`. Make the new issue a sub-issue of the
+  spec, label it `ready-for-agent`, and rewrite its `Blocked by` line with
+  issue numbers. From then on it is an ordinary ticket under **GitHub**:
+  `Refs #<n>` in commits, closed by the agent, the spec closed with its last
+  ticket.
 
 ## Scratch
 
