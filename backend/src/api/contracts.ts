@@ -2014,7 +2014,12 @@ export interface EventMap {
   "linkedGames.changed": LinkedGames;
   /** An automatic update ran and updated or failed something (WF-02). */
   "addons.autoUpdated": { result: AutoUpdateResult };
-  "tradeskillmaster.changed": Record<string, never>;
+  /**
+   * TradeSkillMaster state moved. `account` is the account's follows and
+   * allowance when they changed, so viewers take it without reading the
+   * TradeSkillMaster API again; it is absent when only auction data moved.
+   */
+  "tradeskillmaster.changed": { account?: TradeSkillMasterAccount };
   "addons.changed": { addonIds: string[] };
   /**
    * Update all (addons.updateAll) progress, in order: one when the total is

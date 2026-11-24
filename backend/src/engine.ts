@@ -213,7 +213,7 @@ export function assembleEngine(config: EngineConfig): Engine & { start(): Promis
     // tmp: a big archive on the Deck must not land on a RAM-backed tmpfs.
     join(dataDir, "inspect"),
   );
-  const tsmData = new TradeSkillMasterData(tsmAuth, tsmProvider, installationService, dataDir, () => server.emit("tradeskillmaster.changed", {}));
+  const tsmData = new TradeSkillMasterData(tsmAuth, tsmProvider, installationService, dataDir, (change) => server.emit("tradeskillmaster.changed", change));
   service.onFoldersChanged = (id, folders) => tsmData.foldersChanged(id, folders);
   const catalogue = new Catalogue(registry);
   const addonUpdates = new AddonUpdates(service, registry, store, {

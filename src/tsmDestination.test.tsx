@@ -255,7 +255,7 @@ mock.module("@decky/ui", () => ({
 }));
 const { resetFocusMemory } = await import("./focusMemory");
 const { TsmAddon } = await import("./components/TsmAddon");
-const { resetTsmReads } = await import("./tsmReads");
+const { resetTsmReads, putTsmAccount } = await import("./tsmReads");
 
 beforeEach(resetTsmReads);
 
@@ -648,6 +648,72 @@ test("Manage restores the selected last or different follow after repeated Cance
   }
 });
 
+test("Unfollow moves focus to the neighbouring follow", async () => {
+  const dom = new JSDOM('<div id="root"></div>');
+  Object.assign(globalThis, {
+    window: dom.window,
+    document: dom.window.document,
+    IS_REACT_ACT_ENVIRONMENT: true,
+  });
+  resetFocusMemory();
+  extraFollows = true;
+  followed = true;
+  const unfollow = fake.answers["tradeskillmaster.unfollow"];
+  const full = accountFixture({}) as unknown as TradeSkillMasterAccount;
+  let follows = full.follows;
+  fake.answers["tradeskillmaster.unfollow"] = (params: { realmId: number }) => {
+    follows = follows.filter((f) => f.realmId !== params.realmId);
+    return { ...full, followedCount: follows.length, follows };
+  };
+  const root = createRoot(document.getElementById("root")!);
+  const click = async (text: string) =>
+    act(async () => {
+      [...document.querySelectorAll("button")].find((b) => b.textContent?.includes(text))!.click();
+    });
+  /** The follow row holding focus (its button or its focus slot), or null. */
+  const focusedRow = () => {
+    const focused = document.activeElement;
+    if (!focused || focused === document.body) return null;
+    const rows = focused.tagName === "BUTTON" ? [focused] : [...focused.querySelectorAll("button")];
+    return rows.length === 1 && rows[0]!.querySelector("span") ? rows[0]!.textContent : null;
+  };
+  const unfollowRow = async (name: string) => {
+    await act(async () => {
+      [...document.querySelectorAll("button")]
+        .find((b) => b.querySelector("span") && b.textContent?.includes(name))!
+        .click();
+    });
+    await act(async () => {
+      [...document.querySelectorAll("button")]
+        .find((b) => b.textContent === "Unfollow" && !b.querySelector("span"))!
+        .click();
+    });
+  };
+  try {
+    await act(async () => root.render(<TsmAddon installationId="focus" />));
+    await click("Manage");
+    follows = [...follows, { ...follows[0]!, realmId: 7, name: "Last realm" }];
+    putTsmAccount({ ...full, follows });
+    // The first row goes: focus moves down to the row after it.
+    await unfollowRow("First realm");
+    expect(document.body.textContent).not.toContain("First realm");
+    expect(focusedRow()).toContain("Remote realm");
+    // The last row goes: focus moves up to the row before it.
+    await unfollowRow("Last realm");
+    expect(document.body.textContent).not.toContain("Last realm");
+    expect(focusedRow()).toContain("Remote realm");
+  } finally {
+    extraFollows = false;
+    fake.answers["tradeskillmaster.unfollow"] = unfollow;
+    await act(async () => {
+      modalRoot?.unmount();
+      modalRoot = undefined;
+      root.unmount();
+    });
+    dom.window.close();
+  }
+});
+
 test("Uninstall returns by identity after modal close and delayed destination remount", async () => {
   const dom = new JSDOM('<div id="root"></div>');
   Object.assign(globalThis, {
@@ -768,14 +834,16 @@ test("Manage shows a failed account refresh beside retained follows and can retr
     });
   try {
     await act(async () => root.render(<TsmAddon installationId="empty" />));
+    await act(async () => root.render(<></>));
+    // Opening the panel again revalidates the account it read before; that read fails.
     fake.answers["tradeskillmaster.account"] = new Error("offline");
+    await act(async () => root.render(<TsmAddon installationId="empty" />));
     await act(async () => {
       [...document.querySelectorAll("button")]
         .find((b) => b.textContent?.includes("Manage"))!
         .click();
       root.unmount(); // Steam destroys the QAM opener when the modal opens.
     });
-    await act(async () => fake.emit({ event: "tradeskillmaster.changed", params: {} }));
     expect(document.body.textContent).toContain("Couldn't load followed realms");
     expect(document.body.textContent).toContain("Remote realm");
     fake.answers["tradeskillmaster.account"] = answer;

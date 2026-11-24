@@ -1011,7 +1011,7 @@ in several regions and WoW versions, including a realm absent locally.
 | --- | --- | --- |
 | TSM-192-1 | Open the destination and use the controller to reach Manage beside the count. | The headline says TradeSkillMaster. Signed in shows the account name. No tier label appears. Manage lists all account follows with region, WoW version and faction where applicable. |
 | TSM-192-2 | Select the last follow, then cancel with B and Cancel repeatedly. Select a different follow and repeat. Measure the containing row identity, not only the repeated Unfollow label. | Confirmation explains the change affects every computer. Cancel has initial focus. Neither cancellation changes the account. Focus returns to that follow. |
-| TSM-192-3 | Confirm Unfollow, then repeat with a service failure. | Success removes the row and updates the count. Failure keeps the follow and shows an error with retry available. |
+| TSM-192-3 | Confirm Unfollow on a middle row and on the last row, then repeat with a service failure. | Success removes the row, updates the count and focuses the next follow, or the previous one when the last row went. Failure keeps the follow and shows an error with retry available. |
 | TSM-192-4 | Close Manage with B or Done. Reopen it after character discovery and a plugin restart. | Focus returns to Manage. The removed follow stays absent, including when local characters use that realm. |
 
 
@@ -1154,8 +1154,18 @@ These cases have not been run on hardware.
 | --- | --- |
 | Start sign-in in Options, let the browser close the QAM, finish sign-in and return | The browser closes, the source is on, and Options, its nav dot and the destination agree about sign-in. |
 | Revoke the session elsewhere while viewing the destination, then visit Options | Both show signed out and offer sign-in. Sources never says the account stays signed in or offers Sign out after credentials are cleared. One session-ended notification appears. |
-| Keep Manage followed realms open while auction data changes | Manage and the destination both show the current followed realms. |
+| Keep Manage followed realms open for several minutes while auction data arrives | Manage and the destination both show the current followed realms. Manage stays still: "Loading followed realms…" never appears and the rows never move. The engine rewrites `tsm-catalogue.json` only when follows change or a view reads the account more than a minute after the last load. |
 | Remove TradeSkillMaster, close and reopen the QAM while it runs | Working stays visible. Installation switching waits, and a recovery-required answer appears in My Addons. |
+
+Manage followed realms regression from 1.3.0, DEVICE 2026-11-24 at 4ff44c8.
+With Manage open for five minutes through three auction data bursts (36
+change events), the dialog did not change and made no account read, and
+`tsm-catalogue.json` was not rewritten. Three close and reopen cycles within
+20 seconds loaded the catalogue once. Unfollowing and following again
+updated the list at once without a read, with real follows restored after.
+B and Done returned focus to Manage. Unfollow left focus on Done. At
+d191319, unfollowing a middle row focused the next follow, unfollowing the
+last row focused the previous one, and one more burst left Manage still.
 
 These rows require the final device run. This change was checked with lint,
 formatting, typechecking, typed-fake tests and a build only. Layout, controller

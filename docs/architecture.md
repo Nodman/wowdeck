@@ -216,8 +216,13 @@ TradeSkillMaster has one frontend module, `createTsmModule` in
 `src/tsmReads.ts`, constructed with the typed RPC and clock. Options, the
 nav badge, Get Addons and the sign-in browser share its status resource and
 one poll loop. The browser remains a viewer while the QAM is closed.
-The module reloads sources on status transitions and invalidates status,
-account, destination and cleanup reads on `tradeskillmaster.changed`.
+The module reloads sources on status transitions. On
+`tradeskillmaster.changed` it reads status and destinations again. The
+engine sends that event for every auction data push, so the event carries
+the account only when follows changed. The module stores that account and
+reloads sources without another read. The engine's account read reuses a
+catalogue it loaded in the last minute. Account cleanup always reads the
+server, because its eligibility check authorizes deletions.
 The Manage dialog reads the same account resource as the destination.
 TradeSkillMaster installs and removals use the addon session's operation
 guard, so installation switching waits and recovery answers refresh the

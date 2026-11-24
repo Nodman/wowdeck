@@ -6,7 +6,7 @@
 import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { gunzipSync } from "fflate";
-import type { TradeSkillMasterDestination } from "../../api/contracts";
+import type { TradeSkillMasterAccount, TradeSkillMasterDestination } from "../../api/contracts";
 import type { InstallationService } from "../installation/InstallationService";
 import type { TradeSkillMasterAuth } from "./TradeSkillMasterAuth";
 import type { TradeSkillMasterProvider } from "./TradeSkillMasterProvider";
@@ -48,6 +48,13 @@ const apiResponseLimit = 16 * 1024 * 1024;
 const blobLimit = 64 * 1024 * 1024;
 class FollowRefused extends Error {}
 
+/**
+ * How long the account read reuses the last catalogue. Every panel and modal
+ * mount reads the account; within this window it costs no TradeSkillMaster
+ * API request. Follows changed here arrive through `changed` at once.
+ */
+const accountReuseMs = 60_000;
+
 export class TradeSkillMasterData {
   #cache: Cache = { realms: [], regions: [], gameVersions: [], follows: [] };
   #seen = new Set<string>();
@@ -67,6 +74,8 @@ export class TradeSkillMasterData {
   #transferEpoch = 0;
   #abort = new AbortController();
   #lastPush: number | null = null;
+  /** When this session last loaded the catalogue and follows; undefined until it has. */
+  #loadedAt: number | undefined;
   ready = Promise.resolve();
   constructor(
     private auth: TradeSkillMasterAuth,
@@ -74,7 +83,8 @@ export class TradeSkillMasterData {
     /** The installation module: the only reader of the stored installations. */
     private installations: Pick<InstallationService, "list">,
     private dir: string,
-    public changed: () => void,
+    /** State moved; `account` is the new account when follows or the tier changed. */
+    public changed: (change: { account?: TradeSkillMasterAccount }) => void,
     private candidates: (installationId: string) => TsmCandidate[] = () => [],
     private files: AuctionDataFile = auctionDataFile,
   ) {
@@ -98,6 +108,7 @@ export class TradeSkillMasterData {
       auth.sessionClock.clearTimeout(this.#periodic);
       auth.sessionClock.clearTimeout(this.#scanTimer);
       this.#seen.clear();
+      this.#loadedAt = undefined;
       if (token) this.ready = this.load(token, generation).then(() => this.autoFollow(generation));
     });
     provider.dataListeners.add((name, payload) => {
@@ -145,11 +156,16 @@ export class TradeSkillMasterData {
   private choiceKey(f: TsmCandidate): string {
     return JSON.stringify([f.realmId, f.auctionHouseType]);
   }
-  async account(): Promise<import("../../api/contracts").TradeSkillMasterAccount> {
+  /** The account's follows, read from the API when the last load is older than `reuseMs`. */
+  async account(reuseMs = accountReuseMs): Promise<TradeSkillMasterAccount> {
     await this.ready;
     if (!this.#token || !this.provider.enabled) throw new Error("Sign in to TradeSkillMaster");
-    await this.load(this.#token, this.#generation, true, false);
+    if (this.#loadedAt === undefined || this.now() - this.#loadedAt >= reuseMs)
+      await this.load(this.#token, this.#generation, true, false);
     return this.accountSnapshot();
+  }
+  private now(): number {
+    return this.auth.sessionClock.now?.() ?? Date.now();
   }
   private accountSnapshot(): import("../../api/contracts").TradeSkillMasterAccount {
     const status = this.auth.status();
@@ -171,7 +187,8 @@ export class TradeSkillMasterData {
     return JSON.parse(Buffer.from(this.#token!.split(".")[1]!, "base64url").toString()).sub;
   }
   async cleanupPreview(installationId: string) {
-    const account = await this.account();
+    // Eligibility authorizes deletions: always read the account from the server.
+    const account = await this.account(0);
     const local = new Set(this.discovered(installationId).map((f) => this.choiceKey(f)));
     const others = new Set(this.installations.list().filter((i) => i.id !== installationId)
       .flatMap((i) => this.discovered(i.id)).map((f) => this.choiceKey(f)));
@@ -253,7 +270,7 @@ export class TradeSkillMasterData {
     renameSync(path + ".tmp", path);
     if (!followed) {
       this.#cache.follows = this.#cache.follows.filter((f) => this.choiceKey(f) !== key);
-      this.changed();
+      this.changed({ account: this.accountSnapshot() });
     } else {
       await this.load(token, this.#generation, true);
     }
@@ -395,10 +412,11 @@ export class TradeSkillMasterData {
       const path = join(this.dir, "tsm-catalogue.json");
       writeFileSync(path + ".tmp", JSON.stringify(this.#cache), { mode: 0o600 });
       renameSync(path + ".tmp", path);
+      this.#loadedAt = this.now();
       for (const path of this.paths()) if (!this.#pending.has(path)) this.#pending.set(path, []);
       this.appInfo(this.#appInfo);
       this.schedule();
-      if (notify) this.changed();
+      if (notify) this.changed({ account: this.accountSnapshot() });
     } catch {
       if (required) throw new Error("Could not reload TradeSkillMaster account follows");
       /* Use cached catalogue offline. */
@@ -442,7 +460,7 @@ export class TradeSkillMasterData {
       // A failed path keeps its pending writes; the previous file stays intact.
       if (this.files.apply(path, allowed, pending).ok) this.#pending.delete(path);
     }
-    this.changed();
+    this.changed({});
   }
   private appInfo(payload: Record<string, any>): void {
     const entry = appInfoEntry(payload, Math.floor((this.auth.sessionClock.now?.() ?? Date.now()) / 1000));
@@ -507,7 +525,7 @@ export class TradeSkillMasterData {
     );
     if (!targets.length) {
       skip("no installation needs it");
-      this.changed();
+      this.changed({});
       return;
     }
     const generation = this.#generation;
@@ -548,7 +566,7 @@ export class TradeSkillMasterData {
       ]);
     }
     this.schedule();
-    this.changed();
+    this.changed({});
   }
   async destination(installationId: string): Promise<TradeSkillMasterDestination> {
     await this.ready;
