@@ -32,6 +32,10 @@ export function allowanceText(
     : `${account.followedCount} of ${account.allowance} realms followed`;
 }
 
+type Follow = TradeSkillMasterAccount["follows"][number];
+/** A follow's row key, stable across reads. */
+const followKey = (follow: Follow) => `${follow.realmId}${follow.auctionHouseType}`;
+
 function ManageFollows({
   initial,
   closeModal,
@@ -41,7 +45,7 @@ function ManageFollows({
 }) {
   const { data, error: refreshError, loading, refresh } = useTsmAccount();
   const account = data ?? initial;
-  const [selected, setSelected] = useState<TradeSkillMasterAccount["follows"][number]>();
+  const [selected, setSelected] = useState<Follow>();
   const [busy, setBusy] = useState(false);
   const [lastRealm, setLastRealm] = useState<string>();
   const [error, setError] = useState<string>();
@@ -89,17 +93,13 @@ function ManageFollows({
               style={{ display: "flex", flexDirection: "column", gap: "6px" }}
             >
               {account.follows.map((follow) => (
-                <FocusSlot
-                  key={follow.realmId + follow.auctionHouseType}
-                  view="tsm.manage"
-                  id={follow.realmId + follow.auctionHouseType}
-                >
+                <FocusSlot key={followKey(follow)} view="tsm.manage" id={followKey(follow)}>
                   <ButtonItem
                     label={realmLabel(follow.name, follow.auctionHouseType)}
                     description={`${follow.region} · ${follow.gameVersion}`}
                     onClick={() => {
                       setError(undefined);
-                      setLastRealm(follow.realmId + follow.auctionHouseType);
+                      setLastRealm(followKey(follow));
                       setSelected(follow);
                     }}
                   >
@@ -127,6 +127,12 @@ function ManageFollows({
                     auctionHouseType: selected.auctionHouseType,
                   })
                   .then((result) => {
+                    // The unfollowed row is gone: focus its neighbour, as Steam's lists do.
+                    const index = account.follows.findIndex(
+                      (f) => followKey(f) === followKey(selected),
+                    );
+                    const neighbour = account.follows[index + 1] ?? account.follows[index - 1];
+                    setLastRealm(neighbour && followKey(neighbour));
                     putTsmAccount(result);
                     setSelected(undefined);
                   })
