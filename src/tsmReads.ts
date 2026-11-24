@@ -5,6 +5,7 @@ import { systemClock, type Clock } from "./clock";
 import { engine } from "./engineLink";
 import { createKeyedResource } from "./keyedResource";
 import type {
+  EventMap,
   MethodMap,
   TradeSkillMasterAccount,
   TradeSkillMasterAuthStatus,
@@ -81,9 +82,19 @@ export function createTsmModule(deps: {
     account,
     destination,
     cleanupPreview,
-    changed() {
-      for (const resource of [status, account, destination, cleanupPreview]) resource.invalidate();
-      void deps.reloadSources();
+    /**
+     * The engine's TradeSkillMaster state moved. Auction data moves often (every
+     * push), so only status and destinations read again then; the account comes
+     * with the event when its follows changed, never as another API read.
+     */
+    changed(change: EventMap["tradeskillmaster.changed"] = {}) {
+      status.invalidate();
+      destination.invalidate();
+      if (change.account) {
+        account.put(ACCOUNT_KEY, change.account);
+        cleanupPreview.invalidate();
+        void deps.reloadSources();
+      }
     },
     async signOut() {
       status.put(ACCOUNT_KEY, await deps.rpc("tradeskillmaster.signOut"));

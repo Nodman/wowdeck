@@ -768,14 +768,16 @@ test("Manage shows a failed account refresh beside retained follows and can retr
     });
   try {
     await act(async () => root.render(<TsmAddon installationId="empty" />));
+    await act(async () => root.render(<></>));
+    // Opening the panel again revalidates the account it read before; that read fails.
     fake.answers["tradeskillmaster.account"] = new Error("offline");
+    await act(async () => root.render(<TsmAddon installationId="empty" />));
     await act(async () => {
       [...document.querySelectorAll("button")]
         .find((b) => b.textContent?.includes("Manage"))!
         .click();
       root.unmount(); // Steam destroys the QAM opener when the modal opens.
     });
-    await act(async () => fake.emit({ event: "tradeskillmaster.changed", params: {} }));
     expect(document.body.textContent).toContain("Couldn't load followed realms");
     expect(document.body.textContent).toContain("Remote realm");
     fake.answers["tradeskillmaster.account"] = answer;

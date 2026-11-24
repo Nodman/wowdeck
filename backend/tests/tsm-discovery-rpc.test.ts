@@ -33,9 +33,11 @@ test("discovery follows across flavors in recent order, stops at refusal and pre
   let failDelete = false;
   let failAfterDelete = false;
   let failRealm: string | undefined;
+  let catalogueReads = 0;
+  let now = 1000000;
   const mock = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(req) {
     const path = new URL(req.url).pathname;
-    if (path === "/realms") return Response.json({ items: realms });
+    if (path === "/realms") { catalogueReads++; return Response.json({ items: realms }); }
     if (path === "/regions") return Response.json({ items: realms.map((r) => r.region) });
     if (path === "/versions") return Response.json([]);
     if (req.method === "DELETE") { if (failDelete || path === failRealm) return new Response("offline", { status: 503 }); if (req.headers.get("Content-Type") === "application/json") return new Response("Body cannot be empty", { status: 400 }); deletes++; if (failAfterDelete) failReads = true; follows = follows.filter((f) => path !== `/follows/${f.id}`); return Response.json({}); }
@@ -52,7 +54,7 @@ test("discovery follows across flavors in recent order, stops at refusal and pre
   const callbacks = new Map<number, { fn: () => unknown; ms: number }>(); let timer = 0;
   const registry = new ProviderRegistry(); const store = createStateStore(dir);
   const auth = new TradeSkillMasterAuth(dir, "1", registry, { authorize: base, token: base, revoke: base, realms: base + "/realms", regions: base + "/regions", gameVersions: base + "/versions", userRealms: base + "/follows" }, {
-    now: () => 1000000, setTimeout(fn, ms) { callbacks.set(++timer, { fn, ms }); return timer; }, clearTimeout(id) { callbacks.delete(id as number); },
+    now: () => now, setTimeout(fn, ms) { callbacks.set(++timer, { fn, ms }); return timer; }, clearTimeout(id) { callbacks.delete(id as number); },
   });
   const provider = new TradeSkillMasterProvider(auth); registry.register(provider); registry.attachStore(store); registry.get("TradeSkillMaster")!.enabled = true;
   const installations = folders.map((folder, n) => ({ id: String(n), location: join(dir, String(n), folder), clientType: n ? 2 : 0, label: "fixture", displayName: "fixture", selected: !n, defaultAddonChannelType: 0, source: "detected" as const }));
@@ -88,11 +90,18 @@ test("discovery follows across flavors in recent order, stops at refusal and pre
     await scan(); expect(posts).toEqual([1, 2, 3]);
     realms.push({ realmId: 99, localizedName: "Remote realm", regionId: 99, region: { regionId: 99, gameVersion: "Classic Era", regionPrefix: "us" }, auctionHouses: [{ type: "Horde", auctionHouseId: 99 }] });
     follows.push({ realmId: 99, auctionHouseType: "HORDE", id: "remote" });
+    // An account read within a minute of the last load reuses it: no API request.
+    const reads = catalogueReads;
+    expect((await call("account")).followedCount).toBe(2);
+    expect(catalogueReads).toBe(reads);
+    now += 60_000;
     const complete = await call("account");
+    expect(catalogueReads).toBe(reads + 1);
     expect(complete.followedCount).toBe(3);
     expect(complete.follows).toContainEqual({ realmId: 99, name: "Remote realm", region: "US", gameVersion: "Classic Era", auctionHouseType: "HORDE" });
     follows.pop();
     follows.push({ realmId: 100, auctionHouseType: "ALL", id: "us" });
+    now += 60_000;
     await call("account");
     expect((await call("destination", { installationId: "0" })).realms.map((r: any) => r.id)).toEqual([1]);
     expect((await call("destination", { installationId: "0" })).regions.map((r: any) => r.name)).toEqual(["EU"]);

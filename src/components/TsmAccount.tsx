@@ -62,7 +62,11 @@ function ManageFollows({
         <Focusable key={selected ? "confirmation" : "follows"}>
           {/* Steam's settings: a count is body text, the follows are rows. */}
           <DialogBodyText>{allowanceText(account)}</DialogBodyText>
-          {loading && <DialogBodyText>Loading followed realms…</DialogBodyText>}
+          {/* A fixed slot: always laid out, only hidden, so the line coming
+              and going never moves the rows below it. */}
+          <DialogBodyText style={{ visibility: loading ? "visible" : "hidden" }}>
+            Loading followed realms…
+          </DialogBodyText>
           {refreshError && (
             <>
               <DialogBodyText style={{ color: STEAM.danger }}>{refreshError}</DialogBodyText>

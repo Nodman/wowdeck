@@ -9,6 +9,7 @@ What's new in each version of WoWDeck Addon Manager. The format follows
 ### Fixed
 
 - Low-contrast description and changelog text becomes readable while colours that already work stay unchanged.
+- Manage followed realms no longer flickers while auction data arrives.
 
 ## [1.3.0] - 2026-11-22
 

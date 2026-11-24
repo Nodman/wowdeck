@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { createTsmModule } from "./tsmReads";
-import { createFakeEngine } from "./testSupport/fakeEngine";
+import { createFakeEngine, settle } from "./testSupport/fakeEngine";
 import { createManualClock } from "./testSupport/manualClock";
 
 test("all sign-in viewers share polling and a change refreshes status and sources", async () => {
@@ -91,4 +91,54 @@ test("cancel publishes signed-out state to every viewer without waiting for an o
   expect(clock.activeTimers()).toBe(0);
   await obsolete.resolve({ state: "signingIn", account: null });
   expect(module.status.get("account").data?.state).toBe("off");
+});
+
+test("auction data changes leave the account alone; account changes arrive with the event", async () => {
+  const remote = { account: "Player", followedCount: 1, allowance: 10, follows: [] };
+  const fake = createFakeEngine({
+    "tradeskillmaster.account": () => remote,
+    "tradeskillmaster.destination": {
+      tier: "free",
+      followedCount: 1,
+      allowance: 10,
+      realms: [],
+      regions: [],
+    },
+  });
+  let reloads = 0;
+  const module = createTsmModule({
+    rpc: fake.rpc,
+    clock: createManualClock(),
+    reloadSources: async () => {
+      reloads++;
+    },
+  });
+  const seen: boolean[] = [];
+  const offAccount = module.account.subscribe("account", () => {
+    seen.push(module.account.get("account").loading);
+  });
+  const offDestination = module.destination.subscribe("retail", () => {});
+  await settle();
+  expect(fake.paramsOf("tradeskillmaster.account")).toHaveLength(1);
+  const destinationReads = fake.paramsOf("tradeskillmaster.destination").length;
+  seen.length = 0;
+
+  // Every auction data push sends this: destinations read again, the account doesn't.
+  for (let n = 0; n < 5; n++) module.changed({});
+  await settle();
+  expect(fake.paramsOf("tradeskillmaster.account")).toHaveLength(1);
+  expect(fake.paramsOf("tradeskillmaster.destination").length).toBeGreaterThan(destinationReads);
+  expect(seen).toEqual([]);
+  expect(reloads).toBe(0);
+
+  // A follow change carries the account: shown at once, without a read or a loading state.
+  const changed = { ...remote, followedCount: 2 };
+  module.changed({ account: changed });
+  await settle();
+  expect(fake.paramsOf("tradeskillmaster.account")).toHaveLength(1);
+  expect(module.account.get("account")).toEqual({ data: changed, error: null, loading: false });
+  expect(seen).not.toContain(true);
+  expect(reloads).toBe(1);
+  offAccount();
+  offDestination();
 });
